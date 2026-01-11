@@ -1,7 +1,7 @@
 ```
 metadata-viewer-for-chrome/
 ├── public/
-│   ├── manifest.json              # Permissions: cookies, storage, host_permissions: [*://*.bahai.works/*, *://admin.bahaidata.org/*]
+│   ├── manifest.json              # Permissions: cookies, storage, host_permissions: [*://*.bahai.works/*, *://digitalbahairesources.org/*]
 │   ├── side_panel.html            # Entry point
 │   └── icons/
 │
