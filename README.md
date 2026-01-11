@@ -1,3 +1,4 @@
+```
 rag-librarian-extension/
 ├── public/
 │   ├── manifest.json              # V3 Manifest (Permissions: sidePanel, activeTab, scripting)
@@ -40,3 +41,4 @@ rag-librarian-extension/
 ├── package.json                   # Deps: React, TypeScript, Vite, etc.
 ├── vite.config.ts                 # Build config to output separate bundles for content/background/panel
 └── tsconfig.json
+```
