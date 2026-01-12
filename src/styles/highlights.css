@@ -1,12 +1,12 @@
 /* Base Highlight */
 .rag-highlight {
-  background-color: rgba(232, 245, 233, 0.5);
+  background-color: rgba(232, 245, 233, 0.6);
   cursor: pointer;
 }
 
 /* Active Selection (When clicking a highlight) */
 .rag-highlight.active {
-  background-color: rgba(200, 230, 201, 1);
+  background-color: rgba(200, 230, 201, 0.8);
   z-index: 10;
 }
 
