@@ -7,8 +7,7 @@ metadata-viewer-for-chrome/
 │
 ├── src/
 │   ├── background/
-│   │   ├── service_worker.ts      # Main Event Loop
-│   │   └── auth_manager.ts        # Handshake Logic: Reads Wiki Cookie -> POSTs to API -> Saves JWT
+│   │   └── service_worker.ts      # Main Event Loop and Handshake Logic
 │   │
 │   ├── content/
 │   │   ├── index.ts               # Entry: Injects CSS & Listeners
