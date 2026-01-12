@@ -7,20 +7,26 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentSelection, setCurrentSelection] = useState<string | null>(null);
   const [pageContext, setPageContext] = useState<PageMetadata | null>(null);
+  // ADD THIS STATE
+  const [currentOffsets, setCurrentOffsets] = useState<{start: number; end: number} | null>(null);
 
-  // 1. Check Auth on Load
   useEffect(() => {
     chrome.storage.local.get(['api_token'], (result) => {
       if (result.api_token) setIsAuthenticated(true);
     });
   }, []);
 
-  // 2. Listen for Messages from Content Script (User Selected Text)
   useEffect(() => {
     const handleMessage = (request: any) => {
       if (request.type === 'TEXT_SELECTED') {
         setCurrentSelection(request.text);
-        setPageContext(request.context); // passed from scraper
+        setPageContext(request.context);
+        // CAPTURE OFFSETS HERE
+        setCurrentOffsets(request.offsets); 
+      }
+      if (request.type === 'SELECTION_CLEARED') {
+        setCurrentSelection(null);
+        setCurrentOffsets(null);
       }
     };
     chrome.runtime.onMessage.addListener(handleMessage);
@@ -35,14 +41,14 @@ export default function App() {
     <div className="p-4 bg-slate-50 min-h-screen text-slate-800">
       <header className="mb-4 border-b border-slate-200 pb-2">
         <h1 className="text-lg font-bold text-slate-900">RAG Librarian</h1>
-        <p className="text-xs text-slate-500">Connected to Bahá’í Works</p>
       </header>
 
       <main>
-        {currentSelection ? (
+        {currentSelection && currentOffsets ? ( // CHECK BOTH
           <UnitForm 
             selection={currentSelection} 
             context={pageContext} 
+            offsets={currentOffsets} // PASS IT HERE
             onCancel={() => setCurrentSelection(null)}
           />
         ) : (
