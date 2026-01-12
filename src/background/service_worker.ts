@@ -34,7 +34,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             // 2. Relay the message to the side panel
             setTimeout(() => {
                 chrome.runtime.sendMessage({ ...request, fromBackground: true });
-            }, 2000);
+            }, 500);
         }
     }
 });
