@@ -33,3 +33,39 @@ export const findRangeFromOffsets = (start: number, end: number, containerSelect
     // I can provide this implementation if you are ready for the "Read" path logic.
     return null; 
 };
+
+export const findRangeFromOffsets = (start: number, end: number, containerSelector: string = '#mw-content-text'): Range | null => {
+    const container = document.querySelector(containerSelector);
+    if (!container) return null;
+
+    const range = document.createRange();
+    let currentCharFieldIndex = 0;
+    let startFound = false;
+    let endFound = false;
+
+    // TreeWalker flattens the DOM into a list of Text Nodes
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+
+    let node;
+    while ((node = walker.nextNode())) {
+        const textLength = node.textContent?.length || 0;
+        const nodeEndIndex = currentCharFieldIndex + textLength;
+
+        // A. FIND START
+        if (!startFound && start >= currentCharFieldIndex && start < nodeEndIndex) {
+            range.setStart(node, start - currentCharFieldIndex);
+            startFound = true;
+        }
+
+        // B. FIND END
+        if (startFound && !endFound && end > currentCharFieldIndex && end <= nodeEndIndex) {
+            range.setEnd(node, end - currentCharFieldIndex);
+            endFound = true;
+            break; // We are done
+        }
+
+        currentCharFieldIndex = nodeEndIndex;
+    }
+
+    return (startFound && endFound) ? range : null;
+};
