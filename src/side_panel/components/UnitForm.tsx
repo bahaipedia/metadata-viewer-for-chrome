@@ -5,6 +5,7 @@ import { useApi } from '@/hooks/useApi'; // Custom hook to fetch with JWT
 interface Props {
   selection: string;
   context: PageMetadata | null;
+  offsets: { start: number; end: number };
   onCancel: () => void;
 }
 
@@ -30,9 +31,8 @@ export const UnitForm: React.FC<Props> = ({ selection, context, onCancel }) => {
         source_code: context.source_code,
         source_page_id: context.source_page_id,
         text_content: selection,
-        // TODO: Calculate real indices using src/utils/offset_calculator
-        start_char_index: 0, 
-        end_char_index: selection.length, 
+        start_char_index: offsets.start,
+        end_char_index: offsets.end,
         author: formData.author,
         unit_type: formData.unit_type
       };
