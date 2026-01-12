@@ -9,30 +9,31 @@ export const initSelectionListener = () => {
 };
 
 const handleSelection = () => {
-    // Debounce to prevent firing while dragging
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(async () => {
         const selection = window.getSelection();
-        const range = selection?.getRangeAt(0);
-        const selectedText = selection?.toString().trim(); // DELETE??
-        const offsets = calculateOffsets(range!);
+        const selectedText = selection?.toString().trim();
 
-        // 1. If nothing selected, tell Side Panel to clear the form
-        if (!selectedText || selectedText.length < 5) {
+        // 1. Validation: If nothing selected, clear form & exit early
+        // This prevents 'getRangeAt' errors on empty clicks
+        if (!selection || !selectedText || selectedText.length < 5) {
             chrome.runtime.sendMessage({ type: 'SELECTION_CLEARED' });
             return;
         }
 
-        // 2. Validate selection is inside the Wiki Content (ignore sidebar/footer selections)
-        const anchorNode = selection?.anchorNode;
+        // 2. Validate Container (Context check)
+        const anchorNode = selection.anchorNode;
         const contentContainer = document.querySelector('#mw-content-text');
         
         if (!contentContainer || !contentContainer.contains(anchorNode)) {
-             return; // Selection is outside the article body
+             return; 
         }
 
-        // 3. Send to Side Panel
-        // We send the metadata immediately so the form knows which Page ID to attach to
+        // 3. Heavy Math: Only calculate offsets if we know we are keeping the data
+        const range = selection.getRangeAt(0);
+        const offsets = calculateOffsets(range);
+
+        // 4. Send
         const context = getPageMetadata();
         
         chrome.runtime.sendMessage({
@@ -42,5 +43,5 @@ const handleSelection = () => {
             offsets: offsets
         });
 
-    }, 500); // 500ms delay
+    }, 500);
 };
