@@ -12,8 +12,8 @@ metadata-viewer-for-chrome/
 │   ├── content/
 │   │   ├── index.ts               # Entry: Injects CSS & Listeners
 │   │   ├── scraper.ts             # Grabs page_id, rev_id, and checks for "Restricted" access text
-│   │   ├── highlighter.ts         # Renders saved units (Green) & OCR noise (Red) on page load
-│   │   ├── selection_handler.ts   # Captures user selection & opens Side Panel
+│   │   ├── highlighter.ts         # Talks to API and Renders saved units
+│   │   ├── selection_handler.ts   # Captures user selection & sends it to Side Panel
 │   │   └── dom_events.ts          # Listens for API "Paint" messages to update the view
 │   │
 │   ├── side_panel/
@@ -31,7 +31,7 @@ metadata-viewer-for-chrome/
 │   │
 │   ├── utils/
 │   │   ├── api_client.ts          # Typed fetcher for your Express API (GET /units, POST /relationships)
-│   │   ├── offset_calculator.ts   # CRITICAL: Maps DOM Range <-> Database Integer Indices (start_char, end_char)
+│   │   ├── offset_calculator.ts   # Maps DOM Range <-> Database Integer Indices (start_char, end_char)
 │   │   ├── types.ts               # Contract between the Extension and Database
 │   │   └── logger.ts              # Dev logging
 │   │
