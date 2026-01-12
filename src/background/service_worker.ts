@@ -26,32 +26,41 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 async function performHandshake() {
     try {
-        // A. Get the Wiki Session Cookie
-        // We look for the specific cookie you identified: 'enworks_session'
+        console.log("[Background] Step 1: Getting Cookie 'enworks_session' from https://bahai.works");
         const cookie = await chrome.cookies.get({ 
             url: "https://bahai.works", 
             name: "enworks_session" 
         });
 
         if (!cookie) {
-            return { success: false, error: "Not logged into Bahai.works" };
+            console.error("[Background] Error: Cookie not found.");
+            return { success: false, error: "Not logged into Bahai.works (Cookie missing)" };
         }
+        console.log("[Background] Cookie found:", cookie.value.substring(0, 10) + "...");
 
-        // B. Send to your Node API
+        console.log(`[Background] Step 2: POSTing to ${API_BASE}/auth/verify-session`);
         const response = await fetch(`${API_BASE}/auth/verify-session`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ session_cookie: cookie.value })
         });
 
-        const data = await response.json();
+        console.log("[Background] API Response Status:", response.status);
 
         if (!response.ok) {
-            return { success: false, error: data.error || "Handshake failed" };
+            const errText = await response.text();
+            console.error("[Background] API Error Body:", errText);
+            try {
+                const data = JSON.parse(errText);
+                return { success: false, error: data.error || `API Error: ${response.status}` };
+            } catch (e) {
+                return { success: false, error: `API Error: ${response.status} - ${errText}` };
+            }
         }
 
-        // C. Store the JWT
-        // This JWT is now the "Master Key" for all write operations
+        const data = await response.json();
+        console.log("[Background] Handshake Success. User:", data.username);
+
         await chrome.storage.local.set({ 
             api_token: data.token,
             user_info: { username: data.username, role: data.role }
@@ -60,6 +69,7 @@ async function performHandshake() {
         return { success: true, user: data.username };
 
     } catch (err: any) {
-        return { success: false, error: err.message || "Unknown error" };
+        console.error("[Background] Critical Catch:", err);
+        return { success: false, error: err.message || "Unknown Network Error" };
     }
 }
