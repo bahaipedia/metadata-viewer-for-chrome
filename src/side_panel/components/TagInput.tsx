@@ -2,23 +2,26 @@ import React, { useState, useEffect, KeyboardEvent } from 'react';
 import { useApi } from '@/hooks/useApi';
 
 interface Tag {
-  id: number | string; // Allow string for new tags
+  id: number | string; 
   label: string;
 }
 
 interface Props {
-  selectedTags: (number | string)[]; // Allow mix
+  selectedTags: (number | string)[]; 
   onChange: (tags: (number | string)[]) => void;
+  disabled?: boolean; // <--- ADDED THIS
 }
 
-export const TagInput: React.FC<Props> = ({ selectedTags, onChange }) => {
+export const TagInput: React.FC<Props> = ({ selectedTags, onChange, disabled }) => {
   const { get } = useApi();
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<Tag[]>([]);
-  // We track display objects separately to show labels for IDs
   const [displayTags, setDisplayTags] = useState<Tag[]>([]); 
 
   useEffect(() => {
+    // Prevent search if disabled
+    if (disabled) return;
+
     const timer = setTimeout(async () => {
       if (query.length < 2) {
         setSuggestions([]);
@@ -32,10 +35,10 @@ export const TagInput: React.FC<Props> = ({ selectedTags, onChange }) => {
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, disabled]);
 
   const addTag = (tag: Tag) => {
-    // Prevent duplicates
+    if (disabled) return;
     const isDuplicate = displayTags.some(t => t.label.toLowerCase() === tag.label.toLowerCase());
     if (!isDuplicate) {
       onChange([...selectedTags, tag.id]);
@@ -46,16 +49,17 @@ export const TagInput: React.FC<Props> = ({ selectedTags, onChange }) => {
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (disabled) return;
     if (e.key === 'Enter') {
       e.preventDefault();
       if (query.trim()) {
-        // Add as a "New Tag" (ID is the string itself)
         addTag({ id: query.trim(), label: query.trim() });
       }
     }
   };
 
   const removeTag = (index: number) => {
+    if (disabled) return; // <--- Block removal
     const newTags = [...selectedTags];
     newTags.splice(index, 1);
     onChange(newTags);
@@ -73,27 +77,31 @@ export const TagInput: React.FC<Props> = ({ selectedTags, onChange }) => {
         {displayTags.map((tag, idx) => (
           <span key={`${tag.id}-${idx}`} className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full flex items-center">
             {tag.label}
-            <button 
-              type="button"
-              onClick={() => removeTag(idx)}
-              className="ml-1 text-blue-600 hover:text-blue-900 font-bold"
-            >
-              ×
-            </button>
+            {/* Hide remove button if disabled */}
+            {!disabled && (
+                <button 
+                type="button"
+                onClick={() => removeTag(idx)}
+                className="ml-1 text-blue-600 hover:text-blue-900 font-bold"
+                >
+                ×
+                </button>
+            )}
           </span>
         ))}
       </div>
 
       <input
         type="text"
-        className="w-full p-2 text-sm border rounded bg-white"
-        placeholder="Search or type new tag + Enter..."
+        className="w-full p-2 text-sm border rounded bg-white disabled:bg-slate-100 disabled:text-slate-500"
+        placeholder={disabled ? "Tags locked" : "Search or type new tag + Enter..."}
         value={query}
         onChange={e => setQuery(e.target.value)}
         onKeyDown={handleKeyDown}
+        disabled={disabled} // <--- Block input
       />
 
-      {suggestions.length > 0 && (
+      {!disabled && suggestions.length > 0 && (
         <ul className="absolute z-10 w-full bg-white border border-slate-200 rounded shadow-lg mt-1 max-h-32 overflow-y-auto">
           {suggestions.map((tag: any) => (
             <li 
