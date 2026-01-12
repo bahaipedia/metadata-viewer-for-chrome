@@ -17,7 +17,7 @@ export const UnitForm: React.FC<Props> = ({ selection, context, onCancel, offset
   const [formData, setFormData] = useState({
     author: "‘Abdu’l-Bahá",
     unit_type: 'tablet',
-    tags: [] as number[]
+    tags: [] as (number | string)[]
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -90,7 +90,7 @@ export const UnitForm: React.FC<Props> = ({ selection, context, onCancel, offset
       <div className="mb-4">
         <TagInput 
           selectedTags={formData.tags}
-          onChange={(ids) => setFormData({...formData, tags: ids})} 
+          onChange={(tags) => setFormData({...formData, tags})}
         />
       </div>
       <div className="flex gap-2 pt-2">
