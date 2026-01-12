@@ -11,18 +11,19 @@ export const AuthGate: React.FC<Props> = ({ onLogin }) => {
   const handleConnect = async () => {
     setLoading(true);
     setError(null);
+    console.log("[AuthGate] Connect button clicked. Sending message...");
 
     try {
-      // Send message to Background Script (service_worker.ts)
-      // We cannot access cookies directly here in the Side Panel UI
       const response = await chrome.runtime.sendMessage({ type: 'PERFORM_HANDSHAKE' });
+      console.log("[AuthGate] Response received:", response);
 
       if (response && response.success) {
         onLogin();
       } else {
-        setError(response.error || "Connection failed. Are you logged into Bahai.works?");
+        setError(response.error || "Connection failed, are you logged in?");
       }
     } catch (err) {
+      console.error("[AuthGate] Message passing failed:", err);
       setError("Extension error: Could not reach background service.");
     } finally {
       setLoading(false);
