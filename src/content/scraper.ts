@@ -13,13 +13,15 @@ export const getPageMetadata = (): PageMetadata => {
     // 2. Extract MediaWiki ID (wgArticleId)
     const idMatch = html.match(/"wgArticleId":\s*(\d+)/);
     const pageId = idMatch ? parseInt(idMatch[1]) : 0;
-    //const revMatch = html.match(/"wgCurRevisionId":\s*(\d+)/); 
-    //const revId = revMatch ? parseInt(revMatch[1]) : 0;
+
+    // 3. Extract Revision ID (wgCurRevisionId)
+    const revMatch = html.match(/"wgCurRevisionId":\s*(\d+)/);
+    const revId = revMatch ? parseInt(revMatch[1]) : 0;
 
     return {
         source_code: sourceCode,
         source_page_id: pageId,
-        //latest_rev_id: revId,
+        latest_rev_id: revId,
         url: window.location.href,
         title: document.title.split(' - ')[0]
     };
