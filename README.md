@@ -1,45 +1,42 @@
 ```
-metadata-viewer-for-chrome/
+rag-librarian-extension/
 ├── public/
-│   ├── manifest.json              # Permissions: cookies, storage, host_permissions: [*://*.bahai.works/*, *://digitalbahairesources.org/*]
-│   ├── side_panel.html            # Entry point
+│   ├── manifest.json              # Permissions & Host Config
+│   ├── side_panel.html            # HTML Entry for the React App
 │   └── icons/
 │
 ├── src/
 │   ├── background/
-│   │   └── service_worker.ts      # Main Event Loop and Handshake Logic
+│   │   └── service_worker.ts      # Auth Handshake & API Proxy (for Content Scripts)
 │   │
 │   ├── content/
-│   │   ├── index.ts               # Entry: Injects CSS & Listeners
-│   │   ├── scraper.ts             # Grabs page_id, rev_id, and checks for "Restricted" access text
-│   │   ├── highlighter.ts         # Talks to API and Renders saved units
-│   │   ├── selection_handler.ts   # Captures user selection & sends it to Side Panel
-│   │   └── dom_events.ts          # Listens for API "Paint" messages to update the view
+│   │   ├── index.ts               # Main Controller: Routes messages to Highlighter/Scraper
+│   │   ├── scraper.ts             # Metadata extraction (Page ID, Rev ID)
+│   │   ├── highlighter.ts         # The "Read" Path: Visualizes units on DOM
+│   │   └── selection_handler.ts   # The "Write" Path: Calculates offsets & sends to UI
 │   │
-│   ├── side_panel/
-│   │   ├── index.tsx              # React Entry
-│   │   ├── App.tsx                # Checks if the user is authenticated
+│   ├── side_panel/                # The React Application
+│   │   ├── index.tsx              # React DOM render entry
+│   │   ├── App.tsx                # Main Layout & Auth State Check
 │   │   ├── context/
-│   │   │   └── UnitContext.tsx    # State: Holds the "Pinned" Unit ID (Active Subject) for cross-page linking
+│   │   │   └── UnitContext.tsx    # (Optional) Global state for cross-component data
 │   │   ├── components/
-│   │   │   ├── AuthGate.tsx       # "Connect with MediaWiki" button
-│   │   │   ├── UnitForm.tsx       # Gathers the data and POSTs it to /api/contribute/unit endpoint
-│   │   │   ├── RelationshipManager.tsx # The "Linker": Shows Active Subject -> Connect to Current Selection
-│   │   │   └── TagInput.tsx       # Async Select for 'defined_tags' taxonomy
+│   │   │   ├── AuthGate.tsx       # "Connect to Bahai.works" Login Screen
+│   │   │   ├── UnitForm.tsx       # The Data Entry Form
+│   │   │   ├── TagInput.tsx       # Async Tag Autocomplete (Connecting to `defined_tags`)
+│   │   │   └── RelationshipManager.tsx # UI for linking units together
 │   │   └── hooks/
-│   │       └── useApi.ts          # Helper ensures every request to API includes the JWT stored in chrome.storage.local
+│   │       └── useApi.ts          # Typed API wrapper with JWT handling
 │   │
 │   ├── utils/
-│   │   ├── api_client.ts          # Typed fetcher for your Express API (GET /units, POST /relationships)
-│   │   ├── offset_calculator.ts   # Maps DOM Range <-> Database Integer Indices (start_char, end_char)
-│   │   ├── types.ts               # Contract between the Extension and Database
-│   │   └── logger.ts              # Dev logging
+│   │   ├── offset_calculator.ts   # CRITICAL: DOM Range <-> DB Index math
+│   │   └── types.ts               # Shared Interfaces (LogicalUnit, PageMetadata)
 │   │
 │   └── styles/
-│       ├── highlights.css         # .rag-unit-highlight (Green), .ocr-noise (Red underline)
-│       └── side_panel.css         # Tailwind or CSS modules
+│       ├── highlights.css         # CSS for the yellow/green highlights in the wiki text
+│       └── side_panel.css         # CSS for the React Form
 │
 ├── package.json
-├── vite.config.ts                 # Multi-entry build config
+├── vite.config.ts
 └── tsconfig.json
 ```
