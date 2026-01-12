@@ -2,10 +2,30 @@ import { getPageMetadata } from './scraper';
 import { findRangeFromOffsets } from '@/utils/offset_calculator';
 import { LogicalUnit } from '@/utils/types';
 
+// 1. HARDCODED STYLES (Bypasses loading issues with external CSS files)
+const STYLES = `
+.rag-highlight {
+  background-color: rgba(255, 230, 0, 0.5);
+  border-bottom: 2px solid rgba(218, 165, 32, 0.8);
+  cursor: pointer;
+  mix-blend-mode: multiply; 
+}
+.rag-highlight:hover {
+  background-color: rgba(255, 215, 0, 0.7);
+}
+.unit-type-prayer { background-color: rgba(144, 238, 144, 0.5); border-bottom-color: green; }
+.unit-type-history { background-color: rgba(173, 216, 230, 0.5); border-bottom-color: blue; }
+.unit-type-question { background-color: rgba(255, 182, 193, 0.5); border-bottom-color: red; }
+`;
+
 export const initHighlighter = async () => {
+    // Inject CSS immediately
+    const styleEl = document.createElement('style');
+    styleEl.textContent = STYLES;
+    document.head.appendChild(styleEl);
+
     const meta = getPageMetadata();
     
-    // 1. Ask Background script to fetch data
     const response = await chrome.runtime.sendMessage({
         type: 'FETCH_PAGE_DATA',
         source_code: meta.source_code,
@@ -13,7 +33,6 @@ export const initHighlighter = async () => {
     });
 
     if (response && response.units) {
-        console.log(`[Highlighter] Found ${response.units.length} units.`);
         response.units.forEach((unit: LogicalUnit) => {
             highlightUnit(unit);
         });
@@ -22,16 +41,13 @@ export const initHighlighter = async () => {
 
 const highlightUnit = (unit: LogicalUnit) => {
     try {
-        // 2. Convert DB Ints -> DOM Range
         const range = findRangeFromOffsets(unit.start_char_index, unit.end_char_index);
         
         if (!range) {
-            console.warn(`Could not map unit ${unit.id} to DOM. Content may have changed.`);
+            console.warn(`Could not map unit ${unit.id} to DOM.`);
             return;
         }
 
-        // 3. Safe Highlight (Recursive)
-        // Replaces range.surroundContents(wrapper) which fails on complex DOMs
         safeHighlightRange(range, unit);
 
     } catch (e) {
@@ -39,55 +55,54 @@ const highlightUnit = (unit: LogicalUnit) => {
     }
 };
 
-/**
- * Safely wraps a Range in highlight spans, even if it crosses HTML boundaries.
- */
 const safeHighlightRange = (range: Range, unit: LogicalUnit) => {
-    const startNode = range.startContainer;
-    const endNode = range.endContainer;
     const commonAncestor = range.commonAncestorContainer;
-
-    // Create a TreeWalker to find all text nodes within the range
-    const walker = document.createTreeWalker(
-        commonAncestor,
-        NodeFilter.SHOW_TEXT,
-        {
-            acceptNode: (node) => {
-                // Only accept nodes that are physically intersecting the range
-                if (range.intersectsNode(node)) return NodeFilter.FILTER_ACCEPT;
-                return NodeFilter.FILTER_REJECT;
-            }
-        }
-    );
-
     const nodesToWrap: { node: Node, start: number, end: number }[] = [];
 
-    let currentNode = walker.nextNode();
-    while (currentNode) {
-        // Calculate the slice for this specific text node
-        const isStartNode = (currentNode === startNode);
-        const isEndNode = (currentNode === endNode);
-        
-        const startOffset = isStartNode ? range.startOffset : 0;
-        const endOffset = isEndNode ? range.endOffset : (currentNode.textContent?.length || 0);
+    // --- FIX: Handle Single Node Selection ---
+    if (commonAncestor.nodeType === Node.TEXT_NODE) {
+        nodesToWrap.push({
+            node: commonAncestor,
+            start: range.startOffset,
+            end: range.endOffset
+        });
+    } 
+    // --- FIX: Handle Multi-Node Selection ---
+    else {
+        const walker = document.createTreeWalker(
+            commonAncestor,
+            NodeFilter.SHOW_TEXT,
+            {
+                acceptNode: (node) => {
+                    if (range.intersectsNode(node)) return NodeFilter.FILTER_ACCEPT;
+                    return NodeFilter.FILTER_REJECT;
+                }
+            }
+        );
 
-        // Store instruction (don't modify DOM while walking it!)
-        if (currentNode.textContent && currentNode.textContent.trim().length > 0) {
-             nodesToWrap.push({ node: currentNode, start: startOffset, end: endOffset });
+        let currentNode = walker.nextNode();
+        while (currentNode) {
+            const isStartNode = (currentNode === range.startContainer);
+            const isEndNode = (currentNode === range.endContainer);
+            
+            const startOffset = isStartNode ? range.startOffset : 0;
+            const endOffset = isEndNode ? range.endOffset : (currentNode.textContent?.length || 0);
+
+            if (currentNode.textContent && currentNode.textContent.trim().length > 0) {
+                 nodesToWrap.push({ node: currentNode, start: startOffset, end: endOffset });
+            }
+           
+            currentNode = walker.nextNode();
         }
-       
-        currentNode = walker.nextNode();
     }
 
     console.log(`[Highlighter] Unit ${unit.id}: Wrapping ${nodesToWrap.length} text nodes.`);
 
-    // Apply Wrappers
     nodesToWrap.forEach(({ node, start, end }) => {
         const wrapper = document.createElement('span');
         wrapper.className = `rag-highlight unit-type-${unit.unit_type || 'default'}`;
         wrapper.dataset.unitId = String(unit.id);
         
-        // Add Click Listener
         wrapper.addEventListener('click', (e) => {
             e.stopPropagation(); 
             chrome.runtime.sendMessage({ type: 'UNIT_CLICKED', unit });
