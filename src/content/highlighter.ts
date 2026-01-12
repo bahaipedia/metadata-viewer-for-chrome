@@ -79,6 +79,18 @@ const safeHighlightRange = (range: Range, unit: LogicalUnit) => {
         wrapper.className = `rag-highlight unit-type-${unit.unit_type || 'default'}`;
         wrapper.dataset.unitId = String(unit.id);
         
+        // --- ADDED: Unified Hover Effect ---
+        wrapper.addEventListener('mouseenter', () => {
+            const allParts = document.querySelectorAll(`.rag-highlight[data-unit-id="${unit.id}"]`);
+            allParts.forEach(el => el.classList.add('active'));
+        });
+
+        wrapper.addEventListener('mouseleave', () => {
+            const allParts = document.querySelectorAll(`.rag-highlight[data-unit-id="${unit.id}"]`);
+            allParts.forEach(el => el.classList.remove('active'));
+        });
+        // -----------------------------------
+
         wrapper.addEventListener('click', (e) => {
             e.stopPropagation(); 
             chrome.runtime.sendMessage({ type: 'UNIT_CLICKED', unit });
