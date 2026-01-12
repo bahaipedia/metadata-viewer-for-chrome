@@ -43,42 +43,30 @@ export const UnitForm: React.FC<Props> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!context || (!isViewMode && (!offsets || !selection))) {
-      alert("Required page data is missing. Please try clicking the highlight again or re-selecting the text.");
-      return;
-    }
+    if (!context && !isViewMode) return;
     setIsSubmitting(true);
 
     try {
-      // 1. Construct Payload
-      // If Updating (isViewMode): Use the existing unit's content/offsets
-      // If Creating: Use the selection/offsets passed in props
-      const payload = {
-        source_code: context!.source_code,
-        source_page_id: context!.source_page_id,
-        text_content: isViewMode ? existingUnit!.text_content : selection!,
-        start_char_index: isViewMode ? existingUnit!.start_char_index : offsets!.start,
-        end_char_index: isViewMode ? existingUnit!.end_char_index : offsets!.end,
-        author: formData.author,
-        unit_type: formData.unit_type,
-        tags: formData.tags
-      };
-
       if (isViewMode) {
-          // 1. Create the NEW record
-          await post('/api/contribute/unit', payload);
-          // 2. Delete the OLD record
-          await del(`/api/units/${existingUnit!.id}`);
-          alert("Unit Updated!");
+          // UPDATE LOGIC (Placeholder for now)
+          alert("Update feature coming soon.");
       } else {
-          // --- CREATE LOGIC ---
+          // CREATE LOGIC
+          const payload = {
+            source_code: context!.source_code,
+            source_page_id: context!.source_page_id,
+            text_content: selection,
+            start_char_index: offsets!.start,
+            end_char_index: offsets!.end,
+            author: formData.author,
+            unit_type: formData.unit_type,
+            tags: formData.tags
+          };
           await post('/api/contribute/unit', payload);
           alert("Unit Saved!");
       }
-
       if (onSuccess) onSuccess();
       onCancel();
-
     } catch (err) {
       console.error(err);
       alert("Failed to save unit.");
