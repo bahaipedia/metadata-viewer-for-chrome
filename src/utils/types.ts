@@ -12,6 +12,7 @@ export interface LogicalUnit {
 export interface PageMetadata {
   source_code: string; // 'bw', 'bp'
   source_page_id: number; // wgArticleId
+  latest_rev_id: number;
   title: string;
   url: string;
 }
