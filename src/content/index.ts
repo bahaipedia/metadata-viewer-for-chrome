@@ -1,6 +1,7 @@
 import { getPageMetadata } from './scraper';
 import { initSelectionListener } from './selection_handler';
 import { initHighlighter } from './highlighter';
+import '../styles/highlights.css';
 
 console.log("RAG Librarian: Active");
 
