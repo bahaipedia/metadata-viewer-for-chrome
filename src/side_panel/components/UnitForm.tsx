@@ -37,6 +37,8 @@ export const UnitForm: React.FC<Props> = ({ selection, context, onCancel, offset
         tags: formData.tags
       };
 
+      console.log("DEBUG PAYLOAD:", payload);
+
       // 2. Send to Node API
       await post('/api/contribute/unit', payload);
       
