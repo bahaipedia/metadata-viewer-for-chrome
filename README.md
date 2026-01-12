@@ -1,42 +1,41 @@
 ```
-rag-librarian-extension/
+metadata-viewer/
 ├── public/
-│   ├── manifest.json              # Permissions & Host Config
+│   ├── manifest.json              # Extension config (Points to src/ for scripts per build)
 │   ├── side_panel.html            # HTML Entry for the React App
-│   └── icons/
+│   └── icons/                     # (Optional) Extension icons
 │
 ├── src/
 │   ├── background/
-│   │   └── service_worker.ts      # Auth Handshake & API Proxy (for Content Scripts)
+│   │   └── service_worker.ts      # Auth: Mediates Bot Password handshake & stores JWT
 │   │
 │   ├── content/
-│   │   ├── index.ts               # Main Controller: Routes messages to Highlighter/Scraper
-│   │   ├── scraper.ts             # Metadata extraction (Page ID, Rev ID)
-│   │   ├── highlighter.ts         # The "Read" Path: Visualizes units on DOM
-│   │   └── selection_handler.ts   # The "Write" Path: Calculates offsets & sends to UI
+│   │   ├── index.ts               # Content Script Entry: Bridges DOM events to Side Panel
+│   │   ├── scraper.ts             # Metadata: Extracts MediaWiki Article ID & Rev ID from HTML
+│   │   ├── highlighter.ts         # View: Logic for rendering DB units as DOM highlights
+│   │   └── selection_handler.ts   # Interaction: Captured text & DOM Range data
 │   │
-│   ├── side_panel/                # The React Application
-│   │   ├── index.tsx              # React DOM render entry
-│   │   ├── App.tsx                # Main Layout & Auth State Check
-│   │   ├── context/
-│   │   │   └── UnitContext.tsx    # (Optional) Global state for cross-component data
-│   │   ├── components/
-│   │   │   ├── AuthGate.tsx       # Handles the secure handshake between the browser cookie and API
-│   │   │   ├── UnitForm.tsx       # The Data Entry Form
-│   │   │   ├── TagInput.tsx       # This component allows multi-tag selection (TODO: add a GET /api/tags?search=... endpoint to your Express API later.)
-│   │   │   └── RelationshipManager.tsx # UI for linking units together
-│   │   └── hooks/
-│   │       └── useApi.ts          # Typed API wrapper with JWT handling
+│   ├── side_panel/                # React Sidebar UI
+│   │   ├── index.tsx              # React Entry Point
+│   │   ├── App.tsx                # Main Router: Switches between AuthGate & UnitForm
+│   │   └── components/
+│   │       ├── AuthGate.tsx       # UI for MediaWiki Bot Password Login
+│   │       ├── UnitForm.tsx       # Contribution form (Author, Unit Type, Text Preview)
+│   │       └── TagInput.tsx       # Autocomplete tagging with "Create on the Fly" logic
+│   │
+│   ├── hooks/
+│   │   └── useApi.ts              # Custom Hook: Axios wrapper for JWT-authenticated requests
 │   │
 │   ├── utils/
-│   │   ├── offset_calculator.ts   # CRITICAL: DOM Range <-> DB Index math
-│   │   └── types.ts               # Shared Interfaces (LogicalUnit, PageMetadata)
+│   │   ├── offset_calculator.ts   # Logic for converting DOM ranges to database indices
+│   │   └── types.ts               # Shared TypeScript Interfaces (Unit, Metadata, etc.)
 │   │
 │   └── styles/
-│       ├── highlights.css         # CSS for the yellow/green highlights in the wiki text
-│       └── side_panel.css         # CSS for the React Form
+│       ├── highlights.css         # CSS for injecting highlights into the Wiki body
+│       └── side_panel.css         # Tailwind & custom styles for the sidebar
 │
-├── package.json
-├── vite.config.ts
-└── tsconfig.json
+├── vite.config.ts                 # Build config for Chrome Extension output
+├── tailwind.config.js             # UI styling configuration
+├── tsconfig.json                  # TypeScript project settings
+└── package.json                   # Dependencies & build scripts
 ```
