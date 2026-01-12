@@ -43,7 +43,10 @@ export const UnitForm: React.FC<Props> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!context && !isViewMode) return;
+    if (!context || (!isViewMode && (!offsets || !selection))) {
+      alert("Required page data is missing. Please try clicking the highlight again or re-selecting the text.");
+      return;
+    }
     setIsSubmitting(true);
 
     try {
@@ -51,9 +54,9 @@ export const UnitForm: React.FC<Props> = ({
       // If Updating (isViewMode): Use the existing unit's content/offsets
       // If Creating: Use the selection/offsets passed in props
       const payload = {
-        source_code: context.source_code,
-        source_page_id: context.source_page_id,
-        text_content: isViewMode ? existingUnit!.text_content : selection,
+        source_code: context!.source_code,
+        source_page_id: context!.source_page_id,
+        text_content: isViewMode ? existingUnit!.text_content : selection!,
         start_char_index: isViewMode ? existingUnit!.start_char_index : offsets!.start,
         end_char_index: isViewMode ? existingUnit!.end_char_index : offsets!.end,
         author: formData.author,
