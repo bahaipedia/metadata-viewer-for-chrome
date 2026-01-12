@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:3008"; // Change to digitalbahairesources.org in prod
+const API_BASE = "https://digitalbahairesources.org";
 
 // 1. SIDE PANEL TOGGLE
 // Opens the sidebar when the extension icon is clicked
@@ -15,8 +15,12 @@ chrome.action.onClicked.addListener((tab) => {
 // Listens for a message from the Side Panel to start the login flow
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === 'PERFORM_HANDSHAKE') {
-        performHandshake().then(sendResponse);
-        return true; // Async response
+        console.log("[Background] Handshake requested.");
+        performHandshake().then((response) => {
+            console.log("[Background] Sending response back to UI:", response);
+            sendResponse(response);
+        });
+        return true; 
     }
 });
 
