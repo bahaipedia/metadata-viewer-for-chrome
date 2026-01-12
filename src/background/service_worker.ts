@@ -24,43 +24,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 });
 
-async function performHandshake() {
+async function performHandshake(credentials?: {username: string, password: string}) {
     try {
-        console.log("[Background] Step 1: Getting Cookie 'enworks_session' from https://bahai.works");
-        const cookie = await chrome.cookies.get({ 
-            url: "https://bahai.works", 
-            name: "enworks_session" 
-        });
-
-        if (!cookie) {
-            console.error("[Background] Error: Cookie not found.");
-            return { success: false, error: "Not logged into Bahai.works (Cookie missing)" };
+        if (!credentials) {
+            return { success: false, error: "Credentials missing" };
         }
-        console.log("[Background] Cookie found:", cookie.value.substring(0, 10) + "...");
 
-        console.log(`[Background] Step 2: POSTing to ${API_BASE}/auth/verify-session`);
+        console.log(`[Background] Authenticating as ${credentials.username}...`);
+
         const response = await fetch(`${API_BASE}/auth/verify-session`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ session_cookie: cookie.value })
+            body: JSON.stringify({ 
+                username: credentials.username, 
+                bot_password: credentials.password 
+            })
         });
-
-        console.log("[Background] API Response Status:", response.status);
 
         if (!response.ok) {
             const errText = await response.text();
-            console.error("[Background] API Error Body:", errText);
-            try {
-                const data = JSON.parse(errText);
-                return { success: false, error: data.error || `API Error: ${response.status}` };
-            } catch (e) {
-                return { success: false, error: `API Error: ${response.status} - ${errText}` };
-            }
+            return { success: false, error: `Login Failed: ${response.statusText}` };
         }
 
         const data = await response.json();
-        console.log("[Background] Handshake Success. User:", data.username);
 
+        // Store the JWT
         await chrome.storage.local.set({ 
             api_token: data.token,
             user_info: { username: data.username, role: data.role }
@@ -69,7 +57,15 @@ async function performHandshake() {
         return { success: true, user: data.username };
 
     } catch (err: any) {
-        console.error("[Background] Critical Catch:", err);
-        return { success: false, error: err.message || "Unknown Network Error" };
+        return { success: false, error: err.message };
     }
 }
+
+// Update the listener to accept the payload
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.type === 'PERFORM_HANDSHAKE') {
+        // Pass the credentials from UI to the function
+        performHandshake(request.credentials).then(sendResponse);
+        return true; 
+    }
+});
