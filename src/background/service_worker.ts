@@ -21,11 +21,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     if (request.type === 'FETCH_PAGE_DATA') {
         fetchPageData(request.source_code, request.source_page_id).then(sendResponse);
-        return true; // REQUIRED: Keeps connection open for async response
+        return true; 
     }
 
     if (request.type === 'UNIT_CLICKED') {
         console.log("Unit clicked:", request.unit);
+        
+        // 1. Open the Side Panel
+        if (sender.tab?.id) {
+            (chrome.sidePanel as any).open({ tabId: sender.tab.id });
+            
+            // 2. Relay the message to the side panel
+            setTimeout(() => {
+                chrome.runtime.sendMessage({ ...request, fromBackground: true });
+            }, 500);
+        }
     }
 });
 
