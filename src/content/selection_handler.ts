@@ -1,4 +1,5 @@
 import { getPageMetadata } from './scraper';
+import { calculateOffsets } from '@/utils/offset_calculator';
 
 let debounceTimer: NodeJS.Timeout;
 
@@ -12,7 +13,9 @@ const handleSelection = () => {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(async () => {
         const selection = window.getSelection();
-        const selectedText = selection?.toString().trim();
+        const range = selection?.getRangeAt(0);
+        const selectedText = selection?.toString().trim(); // DELETE??
+        const offsets = calculateOffsets(range!);
 
         // 1. If nothing selected, tell Side Panel to clear the form
         if (!selectedText || selectedText.length < 5) {
@@ -35,7 +38,8 @@ const handleSelection = () => {
         chrome.runtime.sendMessage({
             type: 'TEXT_SELECTED',
             text: selectedText,
-            context: context
+            context: context,
+            offsets: offsets
         });
 
     }, 500); // 500ms delay
