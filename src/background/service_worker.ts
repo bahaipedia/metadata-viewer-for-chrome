@@ -25,17 +25,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 
     if (request.type === 'UNIT_CLICKED') {
-        console.log("Unit clicked:", request.unit);
-        
-        // 1. Open the Side Panel
-        if (sender.tab?.id) {
-            (chrome.sidePanel as any).open({ tabId: sender.tab.id });
+        // 1. Store the unit so the Side Panel can find it when it wakes up
+        chrome.storage.local.set({ pending_unit: request.unit }).then(() => {
             
-            // 2. Relay the message to the side panel
-            setTimeout(() => {
-                chrome.runtime.sendMessage({ ...request, fromBackground: true });
-            }, 500);
-        }
+            // 2. Open the Side Panel
+            if (sender.tab?.id) {
+                (chrome.sidePanel as any).open({ tabId: sender.tab.id });
+            }
+        });
     }
 });
 
