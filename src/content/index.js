@@ -1,6 +1,14 @@
 import { getPageMetadata } from './scraper';
+import { initSelectionListener } from './selection_handler';
+import { initHighlighter } from './highlighter';
 
 console.log("RAG Librarian: Active");
+
+initSelectionListener();
+
+setTimeout(() => {
+    initHighlighter();
+}, 1000);
 
 // Listen for requests from the Side Panel (React App)
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
