@@ -160,7 +160,7 @@ export const RelationshipManager = () => {
           author: "Unknown",
           unit_type: "link_subject"
         });
-        subjectId = res.id;
+        subjectId = res.unit_id;
       }
 
       // 2. Resolve Object ID
@@ -175,7 +175,7 @@ export const RelationshipManager = () => {
           author: "Unknown",
           unit_type: "link_object"
         });
-        objectId = res.id;
+        objectId = res.unit_id;
       }
 
       // 3. Create Relationship
