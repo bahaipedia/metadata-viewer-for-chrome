@@ -37,6 +37,7 @@ export interface DefinedTag {
   label: string;
   parent_id?: number;
   description?: string;
+  is_official?: boolean;
 }
 
 export type StagedItem = 
