@@ -247,12 +247,26 @@ export const RelationshipManager = () => {
       <div className={`p-3 rounded border ${subject ? 'bg-blue-50 border-blue-200' : 'bg-slate-50 border-slate-200 border-dashed'}`}>
         <div className="flex justify-between items-center mb-2">
           <span className="text-xs font-bold text-slate-500">SUBJECT (Origin)</span>
-          {/* Use updateState wrapper */}
           {subject && <button onClick={() => updateState('subject', null)} className="text-xs text-red-500 hover:underline">Clear</button>}
         </div>
         
         {subject ? (
-          <p className="text-sm line-clamp-3 italic">"{subject.type === 'existing' ? subject.unit.text_content : subject.text}"</p>
+          <>
+            <p className="text-sm line-clamp-3 italic mb-2">
+              "{subject.type === 'existing' ? subject.unit.text_content : subject.text}"
+            </p>
+            {/* Show Dropdown ONLY if creating new. If existing, show Read-Only author */}
+            {subject.type === 'new' ? (
+               <AuthorSelect 
+                 value={subjectAuthor} 
+                 onChange={(val) => updateState('subjectAuthor', val)} 
+               />
+            ) : (
+               <div className="text-xs text-slate-500">
+                 Author: <span className="font-semibold">{subject.unit.author}</span>
+               </div>
+            )}
+          </>
         ) : (
           <button 
             onClick={() => updateState('subject', captureSelection())}
@@ -270,7 +284,7 @@ export const RelationshipManager = () => {
         <select 
           value={relType} 
           onChange={(e) => updateState('relType', e.target.value)}
-          className="text-sm border-slate-300 rounded p-1 bg-white"
+          className="text-sm border-slate-300 rounded p-1 bg-white font-medium text-slate-700"
         >
           <option value="commentary">Commentary on</option>
           <option value="translation">Translation of</option>
@@ -284,12 +298,25 @@ export const RelationshipManager = () => {
       <div className={`p-3 rounded border ${object ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200 border-dashed'}`}>
         <div className="flex justify-between items-center mb-2">
           <span className="text-xs font-bold text-slate-500">OBJECT (Target)</span>
-          {/* Use updateState wrapper */}
           {object && <button onClick={() => updateState('object', null)} className="text-xs text-red-500 hover:underline">Clear</button>}
         </div>
 
         {object ? (
-          <p className="text-sm line-clamp-3 italic">"{object.type === 'existing' ? object.unit.text_content : object.text}"</p>
+          <>
+            <p className="text-sm line-clamp-3 italic mb-2">
+              "{object.type === 'existing' ? object.unit.text_content : object.text}"
+            </p>
+            {object.type === 'new' ? (
+               <AuthorSelect 
+                 value={objectAuthor} 
+                 onChange={(val) => updateState('objectAuthor', val)} 
+               />
+            ) : (
+               <div className="text-xs text-slate-500">
+                 Author: <span className="font-semibold">{object.unit.author}</span>
+               </div>
+            )}
+          </>
         ) : (
           <button 
             onClick={() => updateState('object', captureSelection())}
@@ -303,7 +330,6 @@ export const RelationshipManager = () => {
 
       {/* ACTION BUTTONS */}
       <div className="flex gap-2">
-        {/* NEW CANCEL BUTTON */}
         <button 
           onClick={() => updateState('clear', null)}
           disabled={!subject && !object}
