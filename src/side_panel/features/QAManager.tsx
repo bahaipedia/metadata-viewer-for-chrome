@@ -9,7 +9,7 @@ type StagedAnswer =
   | { type: 'new', text: string, offsets: { start: number, end: number }, context: PageMetadata };
 
 export const QAManager = () => {
-  const { currentSelection, selectedUnit } = useSelection();
+  const { currentSelection, selectedUnit, clearSelection } = useSelection();
   const { post } = useApi();
 
   const [questionText, setQuestionText] = useState('');
@@ -49,14 +49,14 @@ export const QAManager = () => {
           author: "Unknown", 
           unit_type: "other"
         });
-        answerUnitId = res.id;
+        answerUnitId = res.unit_id;
       }
 
       // 2. Create Canonical Question
       await post('/api/contribute/qa', {
         question_text: questionText,
         answer_unit_id: answerUnitId,
-        source_book: answer.type === 'existing' ? answer.unit.source_code : answer.context.source_code // Simple fallback
+        source_book: answer.type === 'existing' ? answer.unit.source_code : answer.context.source_code
       });
 
       alert("Q&A Pair Saved!");
@@ -113,7 +113,7 @@ export const QAManager = () => {
             disabled={!currentSelection && !selectedUnit}
             className="w-full py-2 text-sm bg-white border border-slate-300 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-50"
           >
-            Set Selected Text as Answer
+            {currentSelection || selectedUnit ? "Set Active Selection as Answer" : "Highlight text to select..."}
           </button>
         )}
       </div>
