@@ -9,24 +9,43 @@ type StagedAnswer =
 
 export const QAManager = () => {
   const { currentSelection, selectedUnit, clearSelection } = useSelection();
-  const { post, del } = useApi(); // Added 'del' for the DELETE operation
+  const { post, del, get } = useApi();
 
   const [questionText, setQuestionText] = useState('');
   const [author, setAuthor] = useState("‘Abdu’l-Bahá");
   const [answer, setAnswer] = useState<StagedAnswer | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Auto-fill form if user clicks a green "Canonical Answer" highlight
+  // --- 1. MODE DETECTION: Load data when an existing unit is clicked ---
   useEffect(() => {
-    if (selectedUnit && selectedUnit.unit_type === 'canonical_answer') {
-      setAnswer({ type: 'existing', unit: selectedUnit });
-      // Ideally fetch the existing question text here via API if available
-      // setQuestionText(fetchedQuestion); 
-    }
+    const loadEditMode = async () => {
+      if (selectedUnit && selectedUnit.unit_type === 'canonical_answer') {
+        // A. Set Answer Context
+        setAnswer({ type: 'existing', unit: selectedUnit });
+        setAuthor(selectedUnit.author || "‘Abdu’l-Bahá");
+
+        // B. Fetch the Linked Question
+        // (Assumes an endpoint exists: GET /api/qa?answer_unit_id=123)
+        try {
+          const res = await get(`/api/qa?answer_unit_id=${selectedUnit.id}`);
+          if (res && res.length > 0) {
+             setQuestionText(res[0].question_text);
+          } else {
+             setQuestionText(''); // Should not happen for valid QA units
+          }
+        } catch (e) {
+          console.error("Failed to fetch linked question", e);
+        }
+      }
+    };
+    loadEditMode();
   }, [selectedUnit]);
+
+  // --- 2. HANDLERS ---
 
   const handleSetAnswer = () => {
     if (selectedUnit) {
+      // (This path is mostly redundant now due to useEffect, but good for safety)
       setAnswer({ type: 'existing', unit: selectedUnit });
       clearSelection();
     } else if (currentSelection) {
@@ -40,30 +59,52 @@ export const QAManager = () => {
     else if (selectedUnit) setQuestionText(selectedUnit.text_content);
   };
 
+  const handleCancel = () => {
+    setQuestionText('');
+    setAnswer(null);
+    clearSelection();
+  };
+
+  const handleDelete = async () => {
+    if (answer?.type !== 'existing') return;
+    if (!confirm("Are you sure you want to delete this Q&A pair?")) return;
+    
+    setIsSubmitting(true);
+    try {
+        await del(`/api/units/${answer.unit.id}`);
+        alert("Deleted successfully.");
+        handleCancel();
+        chrome.tabs.reload();
+    } catch (e: any) {
+        alert("Delete failed: " + e.message);
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!questionText || !answer) return;
     setIsSubmitting(true);
 
     try {
-      // 1. IF UPDATING: Delete the old unit first.
-      // This triggers the DB Cascade to delete the old canonical_question too.
+      // STEP 1: If Updating, Delete the OLD unit first.
+      // (This creates a clean slate and ensures RAG safety)
       if (answer.type === 'existing') {
         await del(`/api/units/${answer.unit.id}`);
       }
 
-      // 2. Create the NEW Logical Unit (New ID for RAG safety)
-      // Note: Even if we are "updating", we treat the text as new content now.
+      // STEP 2: Prepare New Data
       const textToSave = answer.type === 'existing' ? answer.unit.text_content : answer.text;
+      
       const offsets = answer.type === 'existing' 
         ? { start: answer.unit.start_char_index, end: answer.unit.end_char_index }
         : answer.offsets;
+        
       const context = answer.type === 'existing' 
-        // We need to grab context from the existing unit if we don't have it handy, 
-        // but typically 'existing' unit has source_code/page_id embedded or we grab from global page context.
-        // Assuming your LogicalUnit type has source info, or we use current page context:
-        ? { source_code: answer.unit.source_code, source_page_id: answer.unit.source_page_id } 
+        ? { source_code: answer.unit.source_code, source_page_id: answer.unit.source_page_id } // Ensure your LogicalUnit type includes these!
         : answer.context;
 
+      // STEP 3: Create NEW Unit
       const unitRes = await post('/api/contribute/unit', {
         source_code: context.source_code,
         source_page_id: context.source_page_id,
@@ -74,30 +115,44 @@ export const QAManager = () => {
         unit_type: "canonical_answer"
       });
 
-      // 3. Create the NEW Canonical Question linked to the NEW Unit
+      // STEP 4: Create NEW Question Link
       await post('/api/contribute/qa', {
         question_text: questionText,
         answer_unit_id: unitRes.unit_id,
         source_book: context.source_code 
       });
 
-      alert("Q&A Pair Saved!");
-      setQuestionText('');
-      setAnswer(null);
-      clearSelection();
+      alert(answer.type === 'existing' ? "Q&A Updated!" : "Q&A Created!");
+      handleCancel();
       chrome.tabs.reload(); 
 
     } catch (e: any) {
       console.error(e);
-      alert("Error saving Q&A: " + (e.message || "Unknown error"));
+      alert("Error saving: " + (e.message || "Unknown error"));
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // --- 3. RENDER HELPERS ---
+  
+  const isEditMode = answer?.type === 'existing';
+  
+  // Note: Check your LogicalUnit type definition to ensure `can_delete` is present
+  const canDelete = isEditMode && (answer.unit as any).can_delete; 
+
   return (
     <div className="p-4 space-y-6">
-      <h2 className="text-lg font-bold text-slate-800">Q&A Builder</h2>
+      <div className="flex justify-between items-center">
+        <h2 className="text-lg font-bold text-slate-800">
+            {isEditMode ? "Edit Q&A Pair" : "Q&A Builder"}
+        </h2>
+        {isEditMode && (
+            <button onClick={handleCancel} className="text-xs text-slate-400 hover:text-slate-600">
+                Cancel
+            </button>
+        )}
+      </div>
 
       {/* QUESTION INPUT */}
       <div className="space-y-2">
@@ -138,11 +193,14 @@ export const QAManager = () => {
 
       <div className="h-px bg-slate-200 my-2"></div>
 
-      {/* ANSWER INPUT */}
+      {/* ANSWER DISPLAY */}
       <div className={`p-3 rounded border ${answer ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200 border-dashed'}`}>
         <div className="flex justify-between items-center mb-2">
           <span className="text-xs font-bold text-slate-500">ANSWER (Highlight Text)</span>
-          {answer && <button onClick={() => setAnswer(null)} className="text-xs text-red-500 hover:underline">Clear</button>}
+          {/* Only allow clearing answer if in Creation mode */}
+          {answer && !isEditMode && (
+             <button onClick={() => setAnswer(null)} className="text-xs text-red-500 hover:underline">Clear</button>
+          )}
         </div>
 
         {answer ? (
@@ -158,14 +216,30 @@ export const QAManager = () => {
         )}
       </div>
 
-      {/* SUBMIT */}
-      <button 
-        onClick={handleSubmit}
-        disabled={!questionText || !answer || isSubmitting}
-        className="w-full py-3 bg-slate-800 text-white font-bold rounded shadow-lg hover:bg-slate-700 disabled:bg-slate-300"
-      >
-        {isSubmitting ? "Saving..." : "Save Q&A Pair"}
-      </button>
+      {/* ACTION BUTTONS */}
+      <div className="flex gap-2">
+          {/* DELETE BUTTON (Conditionally Rendered) */}
+          {canDelete && (
+              <button
+                onClick={handleDelete}
+                disabled={isSubmitting}
+                className="px-4 py-3 bg-red-100 text-red-700 font-bold rounded shadow hover:bg-red-200 disabled:opacity-50"
+              >
+                Delete
+              </button>
+          )}
+
+          {/* SUBMIT/UPDATE BUTTON */}
+          <button 
+            onClick={handleSubmit}
+            disabled={!questionText || !answer || isSubmitting}
+            className={`flex-1 py-3 font-bold rounded shadow-lg text-white disabled:bg-slate-300 ${
+                isEditMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-800 hover:bg-slate-700'
+            }`}
+          >
+            {isSubmitting ? "Processing..." : (isEditMode ? "Update Q&A Pair" : "Save Q&A Pair")}
+          </button>
+      </div>
     </div>
   );
 };
