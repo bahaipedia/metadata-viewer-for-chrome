@@ -58,7 +58,7 @@ export default function App() {
   return (
     <div className="p-4 bg-slate-50 min-h-screen text-slate-800">
       <header className="mb-4 border-b border-slate-200 pb-2">
-        <h1 className="text-lg font-bold text-slate-900">RAG Librarian</h1>
+        <h1 className="text-lg font-bold text-slate-900">Text Catalog</h1>
       </header>
 
       <main>
