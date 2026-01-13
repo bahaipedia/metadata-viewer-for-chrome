@@ -20,8 +20,10 @@ export const QAManager = () => {
   const handleSetAnswer = () => {
     if (selectedUnit) {
       setAnswer({ type: 'existing', unit: selectedUnit });
+      clearSelection();
     } else if (currentSelection) {
       setAnswer({ type: 'new', ...currentSelection });
+      clearSelection();
     }
   };
 
@@ -29,6 +31,7 @@ export const QAManager = () => {
   const handleSetQuestionFromText = () => {
     if (currentSelection) setQuestionText(currentSelection.text);
     else if (selectedUnit) setQuestionText(selectedUnit.text_content);
+    // Note: We do NOT clear selection here, in case they want to use the same text for the Answer
   };
 
   const handleSubmit = async () => {
@@ -49,6 +52,7 @@ export const QAManager = () => {
           author: "Unknown", 
           unit_type: "other"
         });
+        // FIX: Used 'unit_id' to match API response
         answerUnitId = res.unit_id;
       }
 
