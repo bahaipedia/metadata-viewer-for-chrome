@@ -15,6 +15,7 @@ export const QAManager = () => {
   const [author, setAuthor] = useState("‘Abdu’l-Bahá");
   const [answer, setAnswer] = useState<StagedAnswer | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   // --- 1. Edit Mode: Load existing QA ---
   useEffect(() => {
@@ -22,6 +23,7 @@ export const QAManager = () => {
       if (selectedUnit && selectedUnit.unit_type === 'canonical_answer') {
         setAnswer({ type: 'existing', unit: selectedUnit });
         setAuthor(selectedUnit.author || "‘Abdu’l-Bahá");
+        setDeleteConfirmOpen(false); // Reset UI state
 
         try {
           const res = await get(`/api/qa?answer_unit_id=${selectedUnit.id}`);
@@ -37,7 +39,6 @@ export const QAManager = () => {
   }, [selectedUnit]);
 
   // --- 2. Helpers ---
-
   // Extracts "Some Answered Questions" from "https://bahai.works/Some_Answered_Questions/17"
   const deriveBookTitle = async (): Promise<string> => {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -95,20 +96,32 @@ export const QAManager = () => {
   };
 
   const handleCancel = () => {
-    setQuestionText('');
-    setAnswer(null);
-    clearSelection();
+    if (deleteConfirmOpen) {
+        setDeleteConfirmOpen(false);
+    } else {
+        setQuestionText('');
+        setAnswer(null);
+        clearSelection();
+    }
   };
 
   const handleDelete = async () => {
+    // Step 1: Open Confirmation
+    if (!deleteConfirmOpen) {
+        setDeleteConfirmOpen(true);
+        return;
+    }
+
+    // Step 2: Actually Delete
     if (answer?.type !== 'existing') return;
-    if (!confirm("Are you sure you want to delete this Q&A pair?")) return;
     
     setIsSubmitting(true);
     try {
         await del(`/api/units/${answer.unit.id}`);
-        // No manual delete for QA needed; DB Cascade handles it
-        handleCancel();
+        setQuestionText('');
+        setAnswer(null);
+        clearSelection();
+        setDeleteConfirmOpen(false);
         chrome.tabs.reload();
     } catch (e: any) {
         alert("Delete failed: " + e.message);
@@ -128,8 +141,6 @@ export const QAManager = () => {
         await del(`/api/units/${answer.unit.id}`);
       }
 
-      // --- CLEANER APPROACH ---
-      // Construct the common payload object in one go
       const unitPayload = answer.type === 'existing' ? {
           source_code: answer.unit.source_code,
           source_page_id: answer.unit.source_page_id,
@@ -144,14 +155,12 @@ export const QAManager = () => {
           end_char_index: answer.offsets.end,
       };
 
-      // 4. Create NEW Unit
       const unitRes = await post('/api/contribute/unit', {
-        ...unitPayload, // Spread the object we just made
+        ...unitPayload, 
         author: author,
         unit_type: "canonical_answer"
       });
 
-      // 5. Create NEW Question 
       await post('/api/contribute/qa', {
         question_text: questionText,
         answer_unit_id: unitRes.unit_id,
@@ -169,22 +178,7 @@ export const QAManager = () => {
       setIsSubmitting(false);
     }
   };
-
-  // Helper to get page context if 'answer.type === existing' logic needs it
-  // (Assuming your scraper normally puts this in currentSelection, but existing units lack it)
-  const getPageContextFromTab = async () => {
-     // This relies on your scraper having run. 
-     // A cleaner way is to message the content script, 
-     // but for now, we can try to use global variables or just assume the scraper is active.
-     // If you have the scraper metadata stored in `SelectionContext` (even when nothing selected), use that.
-     // Otherwise, we might need a quick message dispatch here.
-     const response = await chrome.tabs.sendMessage(
-        (await chrome.tabs.query({active:true}))[0].id!, 
-        { type: "GET_PAGE_METADATA" }
-     );
-     return response;
-  };
-
+  
   const isEditMode = answer?.type === 'existing';
   const canDelete = isEditMode && (answer.unit as any).can_delete; 
 
@@ -194,11 +188,6 @@ export const QAManager = () => {
         <h2 className="text-lg font-bold text-slate-800">
             {isEditMode ? "Edit Q&A Pair" : "Q&A Builder"}
         </h2>
-        {isEditMode && (
-            <button onClick={handleCancel} className="text-xs text-slate-400 hover:text-slate-600">
-                Cancel
-            </button>
-        )}
       </div>
 
       {/* QUESTION INPUT */}
@@ -246,7 +235,6 @@ export const QAManager = () => {
       <div className={`p-3 rounded border ${answer ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200 border-dashed'}`}>
         <div className="flex justify-between items-center mb-2">
           <span className="text-xs font-bold text-slate-500">ANSWER (Highlight Text)</span>
-          {/* Only allow clearing answer if in Creation mode */}
           {answer && !isEditMode && (
              <button onClick={() => setAnswer(null)} className="text-xs text-red-500 hover:underline">Clear</button>
           )}
