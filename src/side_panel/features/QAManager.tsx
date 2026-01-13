@@ -9,36 +9,21 @@ type StagedAnswer =
 
 export const QAManager = () => {
   const { currentSelection, selectedUnit, clearSelection } = useSelection();
-  const { post, get } = useApi(); // Ensure 'get' is available in your hook
+  const { post, del } = useApi(); // Added 'del' for the DELETE operation
 
   const [questionText, setQuestionText] = useState('');
   const [author, setAuthor] = useState("‘Abdu’l-Bahá");
   const [answer, setAnswer] = useState<StagedAnswer | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // --- NEW: Auto-select existing QA pair on click ---
+  // Auto-fill form if user clicks a green "Canonical Answer" highlight
   useEffect(() => {
-    const loadExistingQA = async () => {
-      if (selectedUnit && selectedUnit.unit_type === 'canonical_answer') {
-        // 1. Set the visual answer
-        setAnswer({ type: 'existing', unit: selectedUnit });
-        
-        // 2. Try to fetch the question text (Optional: Requires API support)
-        // If you don't have this endpoint yet, user will have to re-type the question
-        // or you can store the question text in the logical_unit metadata temporarily.
-        try {
-           const res = await get(`/api/qa/by-unit/${selectedUnit.id}`);
-           if (res && res.question_text) {
-               setQuestionText(res.question_text);
-           }
-        } catch(e) {
-           console.log("No existing question found or API error");
-        }
-      }
-    };
-    loadExistingQA();
+    if (selectedUnit && selectedUnit.unit_type === 'canonical_answer') {
+      setAnswer({ type: 'existing', unit: selectedUnit });
+      // Ideally fetch the existing question text here via API if available
+      // setQuestionText(fetchedQuestion); 
+    }
   }, [selectedUnit]);
-  // --------------------------------------------------
 
   const handleSetAnswer = () => {
     if (selectedUnit) {
@@ -60,28 +45,40 @@ export const QAManager = () => {
     setIsSubmitting(true);
 
     try {
-      let answerUnitId = answer.type === 'existing' ? answer.unit.id : null;
-
-      if (!answerUnitId && answer.type === 'new') {
-        // If updating an existing QA, we might want to DELETE the old unit here?
-        // But per your requirements, we are creating new IDs for RAG safety.
-        
-        const res = await post('/api/contribute/unit', {
-          source_code: answer.context.source_code,
-          source_page_id: answer.context.source_page_id,
-          text_content: answer.text,
-          start_char_index: answer.offsets.start,
-          end_char_index: answer.offsets.end,
-          author: author,
-          unit_type: "canonical_answer"
-        });
-        answerUnitId = res.unit_id;
+      // 1. IF UPDATING: Delete the old unit first.
+      // This triggers the DB Cascade to delete the old canonical_question too.
+      if (answer.type === 'existing') {
+        await del(`/api/units/${answer.unit.id}`);
       }
 
+      // 2. Create the NEW Logical Unit (New ID for RAG safety)
+      // Note: Even if we are "updating", we treat the text as new content now.
+      const textToSave = answer.type === 'existing' ? answer.unit.text_content : answer.text;
+      const offsets = answer.type === 'existing' 
+        ? { start: answer.unit.start_char_index, end: answer.unit.end_char_index }
+        : answer.offsets;
+      const context = answer.type === 'existing' 
+        // We need to grab context from the existing unit if we don't have it handy, 
+        // but typically 'existing' unit has source_code/page_id embedded or we grab from global page context.
+        // Assuming your LogicalUnit type has source info, or we use current page context:
+        ? { source_code: answer.unit.source_code, source_page_id: answer.unit.source_page_id } 
+        : answer.context;
+
+      const unitRes = await post('/api/contribute/unit', {
+        source_code: context.source_code,
+        source_page_id: context.source_page_id,
+        text_content: textToSave,
+        start_char_index: offsets.start,
+        end_char_index: offsets.end,
+        author: author,
+        unit_type: "canonical_answer"
+      });
+
+      // 3. Create the NEW Canonical Question linked to the NEW Unit
       await post('/api/contribute/qa', {
         question_text: questionText,
-        answer_unit_id: answerUnitId,
-        source_book: answer.type === 'existing' ? answer.unit.source_code : answer.context.source_code
+        answer_unit_id: unitRes.unit_id,
+        source_book: context.source_code 
       });
 
       alert("Q&A Pair Saved!");
@@ -91,7 +88,8 @@ export const QAManager = () => {
       chrome.tabs.reload(); 
 
     } catch (e: any) {
-      alert("Error saving Q&A: " + e.message);
+      console.error(e);
+      alert("Error saving Q&A: " + (e.message || "Unknown error"));
     } finally {
       setIsSubmitting(false);
     }
