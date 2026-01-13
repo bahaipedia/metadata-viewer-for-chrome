@@ -11,22 +11,17 @@ export const MainLayout = () => {
     const getMode = (path: string) => {
       switch (path) {
         case '/qa': return 'QA_MODE';
-        case '/relations': return 'RELATIONS_MODE'; // Optional: Handle later
-        case '/taxonomy': return 'TAXONOMY_MODE';   // Optional: Handle later
+        case '/relations': return 'RELATIONS_MODE';
+        case '/taxonomy': return 'TAXONOMY_MODE';
         default: return 'CREATE_MODE';
       }
     };
 
     const mode = getMode(location.pathname);
+    
+    chrome.storage.local.set({ highlightMode: mode });
 
-    // Send to active tab
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]?.id) {
-        chrome.tabs.sendMessage(tabs[0].id, { type: 'SET_HIGHLIGHT_MODE', mode });
-      }
-    });
   }, [location.pathname]);
-  // ---------------------------------------------------
 
   const getTabClass = (path: string) => 
     location.pathname === path 
