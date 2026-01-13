@@ -4,11 +4,9 @@ import { AuthGate } from './components/AuthGate';
 import { MainLayout } from './components/Layout/MainLayout';
 import { UnitCreator } from './features/UnitCreator';
 import { RelationshipManager } from './features/RelationshipManager';
+import { QAManager } from './features/QAManager';
+import { TaxonomyExplorer } from './features/TaxonomyExplorer';
 import { SelectionProvider } from './context/SelectionContext';
-
-// Placeholder components for tabs we haven't built yet
-const QAManager = () => <div className="p-4 text-center">Q&A Manager Coming Soon</div>;
-const TaxonomyExplorer = () => <div className="p-4 text-center">Taxonomy Explorer Coming Soon</div>;
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
