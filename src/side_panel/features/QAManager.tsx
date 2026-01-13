@@ -13,6 +13,7 @@ export const QAManager = () => {
   const { post } = useApi();
 
   const [questionText, setQuestionText] = useState('');
+  const [author, setAuthor] = useState("‘Abdu’l-Bahá");
   const [answer, setAnswer] = useState<StagedAnswer | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -49,8 +50,8 @@ export const QAManager = () => {
           text_content: answer.text,
           start_char_index: answer.offsets.start,
           end_char_index: answer.offsets.end,
-          author: "Unknown", 
-          unit_type: "other"
+          author: author,
+          unit_type: "canonical_answer"
         });
         // FIX: Used 'unit_id' to match API response
         answerUnitId = res.unit_id;
@@ -100,7 +101,23 @@ export const QAManager = () => {
         </div>
       </div>
 
-      <div className="h-px bg-slate-200"></div>
+      {/* AUTHOR DROPDOWN */}
+      <div>
+        <label className="block text-xs font-semibold text-slate-600 mb-1">ANSWER AUTHOR</label>
+        <select 
+          className="w-full p-2 text-sm border rounded bg-white"
+          value={author}
+          onChange={e => setAuthor(e.target.value)}
+        >
+          <option>Bahá’u’lláh</option>
+          <option>The Báb</option>
+          <option>‘Abdu’l-Bahá</option>
+          <option>Shoghi Effendi</option>
+          <option>Universal House of Justice</option>
+        </select>
+      </div>
+
+      <div className="h-px bg-slate-200 my-2"></div>
 
       {/* ANSWER INPUT */}
       <div className={`p-3 rounded border ${answer ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200 border-dashed'}`}>
