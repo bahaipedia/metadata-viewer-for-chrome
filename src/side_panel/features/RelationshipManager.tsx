@@ -1,14 +1,25 @@
-import React, { useState, useEffect } from 'react'; // Added useEffect
+import React, { useState, useEffect } from 'react';
 import { useSelection } from '@/side_panel/context/SelectionContext';
 import { useApi } from '@/hooks/useApi';
-import { StagedItem } from '@/utils/types'; // Import from types now
+import { StagedItem } from '@/utils/types';
+
+// Standardized List for RAG Priority
+const AUTHOR_OPTIONS = [
+  "Bahá’u’lláh",
+  "The Báb",
+  "‘Abdu’l-Bahá",
+  "Shoghi Effendi",
+  "Universal House of Justice",
+  "Other" // Maps to "All others" bucket
+];
 
 export const RelationshipManager = () => {
   const { currentSelection, selectedUnit, clearSelection } = useSelection();
   const { post, get, del } = useApi();
-  
   const [subject, setSubject] = useState<StagedItem | null>(null);
   const [object, setObject] = useState<StagedItem | null>(null);
+  const [subjectAuthor, setSubjectAuthor] = useState('Other');
+  const [objectAuthor, setObjectAuthor] = useState('Other');
   const [relType, setRelType] = useState('commentary');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
