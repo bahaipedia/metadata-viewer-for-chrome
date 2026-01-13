@@ -10,7 +10,13 @@ let currentMode: string = 'CREATE_MODE'; // Default
 export const initHighlighter = async () => {
     const meta = getPageMetadata();
     
-    // 1. Fetch Data
+    // 1. CHANGED: Load the active mode from storage immediately
+    const storageResult = await chrome.storage.local.get('highlightMode');
+    if (storageResult.highlightMode) {
+        currentMode = storageResult.highlightMode;
+    }
+    
+    // 2. Fetch Data
     const response = await chrome.runtime.sendMessage({
         type: 'FETCH_PAGE_DATA',
         source_code: meta.source_code,
@@ -18,14 +24,14 @@ export const initHighlighter = async () => {
     });
 
     if (response && response.units) {
-        cachedUnits = response.units; // Store, don't render yet
-        renderHighlights(); // Render based on default mode
+        cachedUnits = response.units;
+        renderHighlights(); 
     }
 
-    // 2. Listen for Mode Changes from Side Panel
-    chrome.runtime.onMessage.addListener((message) => {
-        if (message.type === 'SET_HIGHLIGHT_MODE') {
-            currentMode = message.mode;
+    // 3. CHANGED: Listen to Storage changes (Handles tab switching in Side Panel)
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area === 'local' && changes.highlightMode) {
+            currentMode = changes.highlightMode.newValue;
             renderHighlights();
         }
     });
