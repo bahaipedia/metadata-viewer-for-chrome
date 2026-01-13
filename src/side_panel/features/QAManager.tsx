@@ -211,14 +211,16 @@ export const QAManager = () => {
             value={questionText}
             onChange={(e) => setQuestionText(e.target.value)}
             />
-            <button 
-                type="button"
-                onClick={handleSetQuestionFromText}
-                disabled={!currentSelection && !selectedUnit}
-                className="absolute top-2 right-2 text-[10px] bg-slate-100 border border-slate-300 px-2 py-1 rounded hover:bg-slate-200 text-slate-600 disabled:opacity-0 transition-opacity"
-            >
-                Paste Selection
-            </button>
+            {!isEditMode && (
+                <button 
+                    type="button"
+                    onClick={handleSetQuestionFromText}
+                    disabled={!currentSelection && !selectedUnit}
+                    className="absolute top-2 right-2 text-[10px] bg-slate-100 border border-slate-300 px-2 py-1 rounded hover:bg-slate-200 text-slate-600 disabled:opacity-0 transition-opacity"
+                >
+                    Paste Selection
+                </button>
+            )}
         </div>
       </div>
 
@@ -264,28 +266,44 @@ export const QAManager = () => {
       </div>
 
       {/* ACTION BUTTONS */}
-      <div className="flex gap-2">
-          {/* DELETE BUTTON (Conditionally Rendered) */}
-          {canDelete && (
-              <button
-                onClick={handleDelete}
-                disabled={isSubmitting}
-                className="px-4 py-3 bg-red-100 text-red-700 font-bold rounded shadow hover:bg-red-200 disabled:opacity-50"
-              >
-                Delete
-              </button>
-          )}
-
-          {/* SUBMIT/UPDATE BUTTON */}
-          <button 
-            onClick={handleSubmit}
-            disabled={!questionText || !answer || isSubmitting}
-            className={`flex-1 py-3 font-bold rounded shadow-lg text-white disabled:bg-slate-300 ${
-                isEditMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-800 hover:bg-slate-700'
+      <div className="flex gap-2 pt-2 border-t border-slate-100 mt-4">
+        
+        {/* A. Cancel / Close */}
+        <button 
+            type="button" 
+            onClick={handleCancel} 
+            className={`py-2 text-sm text-slate-600 hover:bg-slate-100 rounded border border-transparent hover:border-slate-300 ${
+                isEditMode ? "px-3" : "flex-1"
             }`}
-          >
-            {isSubmitting ? "Processing..." : (isEditMode ? "Update Q&A Pair" : "Save Q&A Pair")}
-          </button>
+        >
+            {deleteConfirmOpen ? 'Cancel' : (isEditMode ? 'Close' : 'Cancel')} 
+        </button>
+
+        {/* B. Create / Update (Hidden if confirming delete) */}
+        {!deleteConfirmOpen && (
+            <button 
+                onClick={handleSubmit}
+                disabled={!questionText || !answer || isSubmitting}
+                className="flex-1 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-slate-300"
+            >
+                {isSubmitting ? "Processing..." : (isEditMode ? "Update" : "Save Q&A Pair")}
+            </button>
+        )}
+
+        {/* C. Delete (Edit Mode Only) */}
+        {canDelete && (
+            <button 
+                type="button"
+                onClick={handleDelete}
+                className={`px-3 py-2 text-sm rounded transition-all duration-200 border ${
+                    deleteConfirmOpen 
+                        ? 'flex-1 bg-red-600 text-white border-red-700 hover:bg-red-700 font-bold' 
+                        : 'bg-white text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300' 
+                }`}
+            >
+                {deleteConfirmOpen ? "Confirm Delete?" : "Delete"}
+            </button>
+        )}
       </div>
     </div>
   );
