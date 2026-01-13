@@ -64,8 +64,6 @@ export const RelationshipManager = () => {
     setIsSubmitting(true);
 
     try {
-      // ... (Existing ID resolution logic remains exactly the same) ...
-      
       // 1. Resolve Subject ID
       let subjectId = subject.type === 'existing' ? subject.unit.id : null;
       if (!subjectId && subject.type === 'new') {
@@ -76,7 +74,7 @@ export const RelationshipManager = () => {
           start_char_index: subject.offsets.start,
           end_char_index: subject.offsets.end,
           author: "Unknown",
-          unit_type: "other"
+          unit_type: "link_subject"
         });
         subjectId = res.id;
       }
@@ -91,7 +89,7 @@ export const RelationshipManager = () => {
           start_char_index: object.offsets.start,
           end_char_index: object.offsets.end,
           author: "Unknown",
-          unit_type: "other"
+          unit_type: "link_object"
         });
         objectId = res.id;
       }
@@ -104,10 +102,7 @@ export const RelationshipManager = () => {
       });
 
       alert("Relationship Linked!");
-      
-      // Clear persistence on success
       updateState('clear', null);
-      
       chrome.tabs.reload();
 
     } catch (e: any) {
