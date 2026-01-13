@@ -3,12 +3,12 @@ export interface LogicalUnit {
   article_id?: number;
   text_content: string;
   author: string;
-  unit_type: 'tablet' | 'prayer' | 'talk' | 'history' | 'question' | 'other';
+  unit_type: 'tablet' | 'prayer' | 'talk' | 'history' | 'other';
   start_char_index: number; 
   end_char_index: number;
   tags: (number | string)[]; 
-  source_code?: string;   // Added for context reference
-  source_page_id?: number; // Added for context reference
+  source_code?: string;
+  source_page_id?: number;
 }
 
 export interface PageMetadata {
