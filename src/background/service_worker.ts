@@ -37,6 +37,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             }, 500);
         }
     }
+    
+    if (request.type === 'NAVIGATE_TO_UNIT') {
+        // 1. Get current active tab
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            const currentTab = tabs[0];
+            
+            // Note: In a real implementation, you might compare URL to request.source_code/id
+            // For now, we assume the user is on the correct site and just trigger the scroll
+            if (currentTab?.id) {
+                chrome.tabs.sendMessage(currentTab.id, {
+                    type: 'SCROLL_TO_UNIT',
+                    unit_id: request.unit_id
+                });
+            }
+        });
+    }
 });
 
 // 3. PAGE DATA FETCH (Replicating useApi logic without Hooks)

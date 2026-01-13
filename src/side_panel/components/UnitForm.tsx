@@ -72,7 +72,7 @@ export const UnitForm: React.FC<Props> = ({
           // This generates a new ID so the sync system picks it up.
           await post('/api/contribute/unit', payload);
           await del(`/api/units/${existingUnit!.id}`);
-          alert("Unit Updated (New ID Generated)");
+          alert("Unit Updated");
       } else {
           // --- CREATE STRATEGY ---
           await post('/api/contribute/unit', payload);
@@ -161,7 +161,6 @@ export const UnitForm: React.FC<Props> = ({
           <option value="prayer">Prayer</option>
           <option value="talk">Talk</option>
           <option value="history">Historical Account</option>
-          <option value="question">Question & Answer</option>
         </select>
       </div>
 
