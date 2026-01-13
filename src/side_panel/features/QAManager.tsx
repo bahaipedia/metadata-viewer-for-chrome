@@ -47,22 +47,32 @@ export const QAManager = () => {
     try {
         const urlObj = new URL(tab.url);
         
-        // Strategy A: URL Parsing (Preferred for bahai.works)
-        // Path: /Some_Answered_Questions/17 -> "Some Answered Questions"
+        // Strategy A: URL Parsing (Preferred)
+        // MediaWiki structure: /Main_Book_Title/Sub_Page_Title...
         const pathSegments = urlObj.pathname.split('/').filter(p => p);
+        
         if (pathSegments.length > 0) {
-            // Take the first segment (Book Name) and remove underscores
-            let bookTitle = pathSegments[0].replace(/_/g, ' ');
-            // Decode URI components (e.g. %20 -> space)
-            return decodeURIComponent(bookTitle);
+            // "Book_Title" or "Some_Answered_Questions"
+            let bookSegment = pathSegments[0];
+            
+            // 1. Replace Underscores with Spaces
+            // 2. Decode URI (handles %20, %2C, etc.)
+            return decodeURIComponent(bookSegment.replace(/_/g, ' '));
         }
 
         // Strategy B: Title Parsing (Fallback)
-        // Title: "Some Answered Questions/17 - Bahaiworks..."
+        // Only runs if URL parsing failed (e.g. strict root path, weird permalinks)
+        // Title format: "Some Answered Questions/17 - Bahaiworks"
         if (tab.title) {
-            const titlePart = tab.title.split('-')[0].trim(); // "Some Answered Questions/17"
-            return titlePart.split('/')[0].trim(); // "Some Answered Questions"
+            // 1. Split by " - " to remove the site name suffix
+            const pageName = tab.title.split(' - ')[0].trim(); 
+            
+            // 2. Split by "/" to remove subpages
+            // This is safe because MediaWiki puts spaces around slashes in Titles rarely, 
+            // but usually / denotes subpage.
+            return pageName.split('/')[0].trim(); 
         }
+
     } catch (e) {
         console.warn("Error parsing book title:", e);
     }
