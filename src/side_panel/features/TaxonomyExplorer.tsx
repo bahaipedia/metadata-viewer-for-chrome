@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useApi } from '@/hooks/useApi';
 import { DefinedTag, LogicalUnit } from '@/utils/types';
-import { useSelection } from '@/context/SelectionContext';
+import { useSelection } from '@/side_panel/context/SelectionContext';
 import { ChevronRightIcon, ChevronDownIcon, MagnifyingGlassIcon, UserIcon, BuildingLibraryIcon } from '@heroicons/react/24/solid';
 
 // Extended type for tree logic
