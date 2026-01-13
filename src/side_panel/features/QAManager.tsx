@@ -200,7 +200,7 @@ export const QAManager = () => {
             value={questionText}
             onChange={(e) => setQuestionText(e.target.value)}
             />
-            {!isEditMode && (
+            {!isEditMode && !questionText && (
                 <button 
                     type="button"
                     onClick={handleSetQuestionFromText}
