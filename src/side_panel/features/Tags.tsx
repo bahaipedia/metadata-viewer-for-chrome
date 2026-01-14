@@ -333,21 +333,6 @@ export const Tags = () => {
               ) : (
                   /* CONDITION: Editing Unit (Snippet) */
                   <>
-                      {/* [NEW] Author Input Field */}
-                      <div className="mb-4">
-                           <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Author</label>
-                           <div className="relative">
-                               <input 
-                                   type="text" 
-                                   className="w-full p-2 pl-8 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                                   value={author}
-                                   onChange={(e) => setAuthor(e.target.value)}
-                                   placeholder="Author Name"
-                               />
-                               <UserIcon className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400" />
-                           </div>
-                      </div>
-
                       <TagInput tags={selectedTags} onChange={setSelectedTags} />
                       
                       <div className="mt-4 flex justify-end">
