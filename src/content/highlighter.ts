@@ -8,17 +8,14 @@ let currentMode: string = 'TAXONOMY_MODE';
 let pendingScrollId: number | null = null;
 
 export const initHighlighter = async () => {
-    // REMOVED: const meta = getPageMetadata(); <-- This was running too early!
-    
     // 1. Load active mode
     const storageResult = await chrome.storage.local.get('highlightMode');
     if (storageResult.highlightMode) {
         currentMode = storageResult.highlightMode;
     }
     
-    // Helper to run the fetch (Used by Init + Reload Trigger)
+    // Define helper first (so it's available to the listener and the init call)
     const fetchAndRender = async () => {
-        // MOVED HERE: Get fresh metadata right before we use it
         const meta = getPageMetadata(); 
 
         if (!meta.source_code || !meta.source_page_id) {
@@ -38,25 +35,15 @@ export const initHighlighter = async () => {
         }
     };
 
-    // 2. Initial Fetch
-    await fetchAndRender();
-
-    // 3. Listen to Storage changes (Tab Switching)
-    chrome.storage.onChanged.addListener((changes, area) => {
-        if (area === 'local' && changes.highlightMode) {
-            currentMode = changes.highlightMode.newValue;
-            renderHighlights();
-        }
-    });
-
-    // 4. Listen for Relationship Updates from Side Panel
+    // 2. REGISTER LISTENER FIRST (Prevents Race Condition)
+    // We do this before 'await fetchAndRender()' to ensure we catch 'SCROLL_TO_UNIT'
+    // messages that might arrive immediately after page load.
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         
-        // --- NEW: Handle Context Request ---
         if (request.type === 'GET_PAGE_CONTEXT') {
             const meta = getPageMetadata();
             sendResponse(meta);
-            return true; // Required for async sendResponse
+            return true; 
         }
 
         if (request.type === 'UPDATE_HIGHLIGHTS' && Array.isArray(request.units)) {
@@ -75,6 +62,17 @@ export const initHighlighter = async () => {
         if (request.type === 'SCROLL_TO_UNIT') {
             pendingScrollId = request.unit_id;
             attemptScroll();
+        }
+    });
+
+    // 3. Initial Fetch (Now safe to await)
+    await fetchAndRender();
+
+    // 4. Listen to Storage changes (Tab Switching)
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area === 'local' && changes.highlightMode) {
+            currentMode = changes.highlightMode.newValue;
+            renderHighlights();
         }
     });
 };
