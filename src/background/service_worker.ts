@@ -54,7 +54,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     
     if (request.type === 'NAVIGATE_TO_UNIT') {
-        const { source_code, source_page_id, unit_id } = request;
+        const { source_code, source_page_id, unit_id, title } = request;
 
         // 1. Resolve Base URL (Adjust domains if necessary)
         let baseUrl = 'https://bahai.works'; 
@@ -65,7 +65,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         // MediaWiki standard URL pattern
         let targetUrl = `${baseUrl}/index.php?curid=${source_page_id}`;
         if (title) {
-            // MediaWiki underscores spaces in URLs
             const safeTitle = title.replace(/ /g, '_'); 
             targetUrl = `${baseUrl}/${encodeURIComponent(safeTitle)}`;
         }
