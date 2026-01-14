@@ -56,37 +56,28 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === 'NAVIGATE_TO_UNIT') {
         const { source_code, source_page_id, unit_id, title } = request;
 
-        // 1. Resolve Base URL
+        // 1. Resolve Base URL (Adjust domains if necessary)
         let baseUrl = 'https://bahai.works'; 
         if (source_code === 'bp') baseUrl = 'https://bahaipedia.org';
         if (source_code === 'bd') baseUrl = 'https://bahaidata.org';
         if (source_code === 'bm') baseUrl = 'https://bahai.media';
 
-        // 2. Construct Target URL
+        // MediaWiki standard URL pattern
         let targetUrl = `${baseUrl}/index.php?curid=${source_page_id}`;
-        let urlTitlePart = ""; // Used for checking if we are on the page
-
-        if (title && title !== "Auto-Discovered Page") {
+        if (title) {
             const safeTitle = title.replace(/ /g, '_'); 
-            // FIX 1: Encode special chars, but revert slashes so they act as path separators
-            const encodedTitle = encodeURIComponent(safeTitle).replace(/%2F/g, '/');
-            
-            targetUrl = `${baseUrl}/${encodedTitle}`;
-            urlTitlePart = encodedTitle;
+            targetUrl = `${baseUrl}/${encodeURIComponent(safeTitle)}`;
+        } else {
+            console.warn(`[Nav] Title missing for PageID ${source_page_id}. Falling back to curid.`);
         }
 
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
             const currentTab = tabs[0];
             if (!currentTab?.id) return;
 
-            const currentUrl = currentTab.url || "";
-
-            // FIX 2: Improved "Is On Page" Check
-            // We are on the page if the URL contains the ID (Legacy) 
-            // OR if the URL contains the Title we just built (Pretty)
-            const isOnPage = 
-                currentUrl.includes(`curid=${source_page_id}`) || 
-                (urlTitlePart && currentUrl.includes(urlTitlePart));
+            // 2. Check if we are already on the correct page
+            // We check if the URL contains the Page ID
+            const isOnPage = currentTab.url && currentTab.url.includes(`curid=${source_page_id}`);
 
             if (isOnPage) {
                 // A. Same Page: Just Scroll
@@ -97,6 +88,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             } else {
                 // B. Different Page: Navigate -> Wait for Load -> Scroll
                 chrome.tabs.update(currentTab.id, { url: targetUrl }, (tab) => {
+                    // Add a one-time listener to wait for the page to finish loading
                     const listener = (tabId: number, changeInfo: any) => {
                         if (tabId === tab?.id && changeInfo.status === 'complete') {
                             chrome.tabs.sendMessage(tabId, { 
