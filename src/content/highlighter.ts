@@ -7,7 +7,7 @@ let cachedUnits: LogicalUnit[] = [];
 let currentMode: string = 'TAXONOMY_MODE';
 
 export const initHighlighter = async () => {
-    const meta = getPageMetadata();
+    // REMOVED: const meta = getPageMetadata(); <-- This was running too early!
     
     // 1. Load active mode
     const storageResult = await chrome.storage.local.get('highlightMode');
@@ -17,6 +17,14 @@ export const initHighlighter = async () => {
     
     // Helper to run the fetch (Used by Init + Reload Trigger)
     const fetchAndRender = async () => {
+        // MOVED HERE: Get fresh metadata right before we use it
+        const meta = getPageMetadata(); 
+
+        if (!meta.source_code || !meta.source_page_id) {
+            console.warn("Highlighter: Missing metadata, skipping fetch.");
+            return;
+        }
+
         const response = await chrome.runtime.sendMessage({
             type: 'FETCH_PAGE_DATA',
             source_code: meta.source_code,
@@ -40,9 +48,7 @@ export const initHighlighter = async () => {
         }
     });
 
-    // 4. NEW: Listen for Relationship Updates from Side Panel
-    // This allows the React App to inject "link_subject" types that might 
-    // strictly be "other" in the DB, ensuring they show up in the correct color.
+    // 4. Listen for Relationship Updates from Side Panel
     chrome.runtime.onMessage.addListener((request) => {
         if (request.type === 'UPDATE_HIGHLIGHTS' && Array.isArray(request.units)) {
             // Merge incoming units into cache, overwriting duplicates by ID
@@ -71,25 +77,29 @@ const renderHighlights = () => {
         }
     });
 
-    // 2. Filter Units based on Mode
+    // 2. Filter Units based on Mode (Strict Separation)
     const unitsToRender = cachedUnits.filter(unit => {
-        // --- NEW: Tags View ---
+        
+        // Tab 1: Tags (Default) -> Only User Highlights
         if (currentMode === 'TAXONOMY_MODE') {
              return unit.unit_type === 'user_highlight';
         }
 
+        // Tab 2: Label (Base Content) -> Only Tablets, Prayers, etc. (Exclude Overlays)
+        if (currentMode === 'CREATE_MODE') {
+            return !['canonical_answer', 'link_subject', 'link_object', 'user_highlight'].includes(unit.unit_type); 
+        }
+
+        // Tab 3: Q&A -> Only Canonical Answers
         if (currentMode === 'QA_MODE') {
             return unit.unit_type === 'canonical_answer';
         }
         
+        // Tab 4: Links -> Only Link Subjects/Objects
         if (currentMode === 'RELATIONS_MODE') {
             return unit.unit_type === 'link_subject' || unit.unit_type === 'link_object';
         }
 
-        if (currentMode === 'CREATE_MODE') {
-            return !['canonical_answer', 'link_subject', 'link_object', 'user_highlight'].includes(unit.unit_type); 
-        }
-        
         return false; 
     });
 
@@ -102,7 +112,7 @@ const highlightUnit = (unit: LogicalUnit) => {
         const range = findRangeFromOffsets(unit.start_char_index, unit.end_char_index);
         
         if (!range) {
-            console.warn(`Could not map unit ${unit.id} to DOM.`);
+            // console.warn(`Could not map unit ${unit.id} to DOM.`);
             return;
         }
         safeHighlightRange(range, unit);
@@ -151,7 +161,6 @@ const safeHighlightRange = (range: Range, unit: LogicalUnit) => {
 
     nodesToWrap.forEach(({ node, start, end }) => {
         const wrapper = document.createElement('span');
-        // Add specific class for CSS styling per mode if needed
         wrapper.className = `rag-highlight unit-type-${unit.unit_type || 'default'}`;
         wrapper.dataset.unitId = String(unit.id);
         
