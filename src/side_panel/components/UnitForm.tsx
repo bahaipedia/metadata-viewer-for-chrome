@@ -55,6 +55,7 @@ export const UnitForm: React.FC<Props> = ({
       const payload = {
         source_code: payloadSourceCode,
         source_page_id: payloadPageId,
+        title: context?.title,
         text_content: isViewMode ? existingUnit!.text_content : selection,
         start_char_index: isViewMode ? existingUnit!.start_char_index : offsets!.start,
         end_char_index: isViewMode ? existingUnit!.end_char_index : offsets!.end,
