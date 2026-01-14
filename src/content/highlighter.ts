@@ -5,6 +5,7 @@ import { LogicalUnit } from '@/utils/types';
 // --- Global State for Highlighter ---
 let cachedUnits: LogicalUnit[] = [];
 let currentMode: string = 'TAXONOMY_MODE';
+let pendingScrollId: number | null = null;
 
 export const initHighlighter = async () => {
     // REMOVED: const meta = getPageMetadata(); <-- This was running too early!
@@ -64,6 +65,11 @@ export const initHighlighter = async () => {
         if (request.type === 'TRIGGER_DATA_RELOAD') {
             fetchAndRender();
         }
+
+        if (request.type === 'SCROLL_TO_UNIT') {
+            pendingScrollId = request.unit_id;
+            attemptScroll();
+        }
     });
 };
 
@@ -105,6 +111,40 @@ const renderHighlights = () => {
 
     // 3. Draw
     unitsToRender.forEach(highlightUnit);
+
+    // 4. NEW: Check for pending scroll (Fixes race condition on new page load)
+    if (pendingScrollId) {
+        attemptScroll();
+    }
+};
+
+// Helper to perform the scroll and visual flash
+const attemptScroll = () => {
+    if (!pendingScrollId) return;
+
+    const el = document.querySelector(`.rag-highlight[data-unit-id="${pendingScrollId}"]`);
+    if (el) {
+        // 1. Scroll
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        // 2. Flash Effect (Requires CSS or inline styles)
+        // Using inline styles for safety if you don't have the CSS class set up
+        const originalTransition = (el as HTMLElement).style.transition;
+        const originalBg = (el as HTMLElement).style.backgroundColor;
+        
+        (el as HTMLElement).style.transition = "background-color 0.5s ease";
+        (el as HTMLElement).style.backgroundColor = "rgba(255, 255, 0, 0.8)"; // Bright Yellow Flash
+
+        setTimeout(() => {
+            (el as HTMLElement).style.backgroundColor = originalBg;
+            setTimeout(() => {
+                 (el as HTMLElement).style.transition = originalTransition;
+            }, 500);
+        }, 1500);
+
+        // 3. Clear Queue
+        pendingScrollId = null;
+    }
 };
 
 const highlightUnit = (unit: LogicalUnit) => {
