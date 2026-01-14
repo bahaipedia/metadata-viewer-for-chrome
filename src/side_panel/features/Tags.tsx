@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useSelection } from '@/side_panel/context/SelectionContext';
 import { useApi } from '@/hooks/useApi';
 import { TagInput } from '../components/TagInput';
+import { TaxonomyExplorer } from './TaxonomyExplorer'; // Import your existing Tree View
 
-export const PersonalTags = () => {
+export const Tags = () => {
   const { currentSelection, clearSelection } = useSelection();
   const { post } = useApi();
   
@@ -20,22 +21,17 @@ export const PersonalTags = () => {
     setIsSaving(true);
 
     try {
-      // 1. Create the Logical Unit
       const unitPayload = {
-        article_id: currentSelection.context.source_page_id, // Simplified mapping
+        article_id: currentSelection.context.source_page_id,
         text_content: currentSelection.text,
         start_char_index: currentSelection.offsets.start,
         end_char_index: currentSelection.offsets.end,
         unit_type: 'user_highlight', 
-        tags: tagIds // Backend handles linking in unit_tags table
+        tags: tagIds
       };
 
       await post('/api/units', unitPayload);
-
-      // 2. Notify Content Script to draw the new highlight immediately
       chrome.runtime.sendMessage({ type: 'REFRESH_HIGHLIGHTS' });
-      
-      // 3. Clear form
       clearSelection();
 
     } catch (e) {
@@ -46,15 +42,12 @@ export const PersonalTags = () => {
     }
   };
 
+  // 1. IDLE STATE: Show the Taxonomy Tree instead of empty state
   if (!currentSelection) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full text-slate-400 p-8 text-center">
-        <div className="mb-4 text-4xl">✍️</div>
-        <p className="text-sm">Select text on the page to create a new highlight.</p>
-      </div>
-    );
+    return <TaxonomyExplorer />;
   }
 
+  // 2. CREATE STATE: Show the Tagging Form
   return (
     <div className="flex flex-col h-full bg-slate-50">
       <div className="p-4 flex-1 overflow-y-auto">
