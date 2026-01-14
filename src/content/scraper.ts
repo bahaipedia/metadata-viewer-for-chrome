@@ -1,5 +1,23 @@
 import { PageMetadata } from '@/utils/types';
 
+// [NEW] Helper to extract author from DOM
+function getPageAuthor(): string {
+    // 1. Try specific Bahai.works/Bahaipedia ID
+    const headerEl = document.getElementById('header_author_text');
+    if (headerEl) {
+        const fn = headerEl.querySelector('.fn');
+        return (fn?.textContent || headerEl.textContent || "Undefined").trim();
+    }
+    
+    // 2. Fallback: Meta tag
+    const metaAuthor = document.querySelector('meta[name="author"]');
+    if (metaAuthor) {
+        return metaAuthor.getAttribute('content') || "Undefined";
+    }
+
+    return "Undefined";
+}
+
 export const getPageMetadata = (): PageMetadata => {
     // FIX: Read the entire document (Head + Body). 
     // MediaWiki variables are almost always in the <head>.
@@ -39,6 +57,7 @@ export const getPageMetadata = (): PageMetadata => {
         source_page_id: pageId,
         latest_rev_id: revId,
         url: window.location.href,
-        title: document.title.split(' - ')[0]
+        title: document.title.split(' - ')[0],
+        author: getPageAuthor() // [NEW] Added author field
     };
 };
