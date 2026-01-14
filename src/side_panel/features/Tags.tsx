@@ -181,7 +181,8 @@ export const Tags = () => {
   const closeBottomPane = () => {
     clearSelection();
     setEditingUnit(null);
-    setEditingTag(null); // [NEW]
+    setEditingTag(null);
+    setRevealUnitId(null);
   };
 
   // [UPDATED] Visibility logic
