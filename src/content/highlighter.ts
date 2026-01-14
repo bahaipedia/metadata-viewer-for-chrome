@@ -67,6 +67,7 @@ export const initHighlighter = async () => {
             if (cachedUnits.length > 0) {
                 attemptScroll();
             }
+            sendResponse({ success: true });
         }
     });
 
