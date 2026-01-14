@@ -77,8 +77,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             if (!currentTab?.id) return;
 
             // 2. Check if we are already on the correct page
-            // We check if the URL contains the Page ID
-            const isOnPage = currentTab.url && currentTab.url.includes(`curid=${source_page_id}`);
+            let isOnPage = false;
+            if (currentTab.url) {
+                try {
+                    const currentUrlObj = new URL(currentTab.url);
+                    const targetUrlObj = new URL(targetUrl);
+                    
+                    // Check 1: Exact Path Match (handles pretty URLs)
+                    const pathsMatch = currentUrlObj.pathname === targetUrlObj.pathname;
+                    
+                    // Check 2: Legacy Curid Match (fallback)
+                    const curidMatch = currentTab.url.includes(`curid=${source_page_id}`);
+
+                    // Check 3: Hostname must match (prevents false positives across wikis)
+                    const hostsMatch = currentUrlObj.hostname === targetUrlObj.hostname;
+
+                    isOnPage = hostsMatch && (pathsMatch || curidMatch);
+                } catch (e) {
+                    console.error("Error parsing URLs", e);
+                }
+            }
 
             if (isOnPage) {
                 // A. Same Page: Just Scroll
