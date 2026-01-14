@@ -9,6 +9,7 @@ export interface LogicalUnit {
   tags: (number | string)[]; 
   source_code?: string;
   source_page_id?: number;
+  title?: string;
 }
 
 export interface PageMetadata {
