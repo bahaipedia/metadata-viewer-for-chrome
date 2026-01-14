@@ -60,8 +60,13 @@ export const initHighlighter = async () => {
         }
 
         if (request.type === 'SCROLL_TO_UNIT') {
+            console.log("Received Scroll Request for:", request.unit_id);
             pendingScrollId = request.unit_id;
-            attemptScroll();
+            
+            // Only attempt to scroll immediately if we actually have data.
+            if (cachedUnits.length > 0) {
+                attemptScroll();
+            }
         }
     });
 
