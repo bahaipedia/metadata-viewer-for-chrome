@@ -172,6 +172,7 @@ export const RelationshipManager = () => {
         const res = await post('/api/contribute/unit', {
           source_code: subject.context.source_code,
           source_page_id: subject.context.source_page_id,
+          title: subject.context.title,
           text_content: subject.text,
           start_char_index: subject.offsets.start,
           end_char_index: subject.offsets.end,
@@ -187,6 +188,7 @@ export const RelationshipManager = () => {
         const res = await post('/api/contribute/unit', {
           source_code: object.context.source_code,
           source_page_id: object.context.source_page_id,
+          title: object.context.title,
           text_content: object.text,
           start_char_index: object.offsets.start,
           end_char_index: object.offsets.end,
