@@ -201,6 +201,7 @@ export const Tags = () => {
       
       {/* Header */}
       <div className="p-3 bg-white border-b border-slate-200 shadow-sm z-10 space-y-3">
+        {/* View Mode Toggles */}
         <div className="flex bg-slate-100 p-1 rounded-lg">
           <button
             onClick={() => setViewMode('mine')}
@@ -221,15 +222,50 @@ export const Tags = () => {
             View Examples
           </button>
         </div>
-        <div className="relative">
-          <MagnifyingGlassIcon className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
-          <input 
-            type="text" 
-            placeholder="Filter taxonomy..." 
-            className="w-full pl-8 pr-2 py-2 text-sm border rounded bg-slate-50 focus:bg-white focus:ring-1 focus:ring-blue-500 outline-none"
-            value={filterText}
-            onChange={(e) => setFilterText(e.target.value)}
-          />
+
+        {/* Search & Edit Actions Row */}
+        <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+                <MagnifyingGlassIcon className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
+                <input 
+                    type="text" 
+                    placeholder="Filter taxonomy..." 
+                    className="w-full pl-8 pr-2 py-2 text-sm border rounded bg-slate-50 focus:bg-white focus:ring-1 focus:ring-blue-500 outline-none"
+                    value={filterText}
+                    onChange={(e) => setFilterText(e.target.value)}
+                />
+            </div>
+
+            {/* Edit Controls (Only visible in 'My Tags') */}
+            {viewMode === 'mine' && (
+                !isEditMode ? (
+                    <button 
+                        onClick={() => setIsEditMode(true)}
+                        className="p-2 text-slate-500 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 border border-slate-200 rounded transition-colors"
+                        title="Edit Taxonomy Tree"
+                    >
+                        <PencilSquareIcon className="w-4 h-4" />
+                    </button>
+                ) : (
+                    <div className="flex gap-1">
+                        <button 
+                            onClick={handleSaveTree}
+                            disabled={isSaving}
+                            className="p-2 bg-green-100 text-green-700 hover:bg-green-200 border border-green-300 rounded transition-colors"
+                            title="Save Hierarchy Changes"
+                        >
+                            <CheckIcon className="w-4 h-4" />
+                        </button>
+                        <button 
+                            onClick={() => { setIsEditMode(false); setRefreshKey(prev => prev + 1); setTreeChanges([]); }}
+                            className="p-2 bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-300 rounded transition-colors"
+                            title="Cancel Editing"
+                        >
+                            <XMarkIcon className="w-4 h-4" />
+                        </button>
+                    </div>
+                )
+            )}
         </div>
       </div>
 
@@ -242,6 +278,9 @@ export const Tags = () => {
             refreshKey={refreshKey}
             onTagSelect={handleTagClickFromTree}
             isSelectionMode={isEditorVisible}
+            isEditMode={isEditMode}
+            onTreeChange={setTreeChanges}
+            onDeleteTag={handleTagDeleteRequest}
         />
       </div>
 
@@ -266,10 +305,9 @@ export const Tags = () => {
 
            <div className="p-4 overflow-y-auto">
               <blockquote className="text-xs text-slate-600 italic border-l-2 border-slate-300 pl-2 mb-4 line-clamp-3">
-                 "{currentSelection ? currentSelection.text : editingUnit?.text_content}"
+                  "{currentSelection ? currentSelection.text : editingUnit?.text_content}"
               </blockquote>
 
-              {/* Pass objects, not IDs */}
               <TagInput tags={selectedTags} onChange={setSelectedTags} />
               
               <div className="mt-4 flex justify-end">
