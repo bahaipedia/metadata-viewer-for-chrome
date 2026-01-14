@@ -372,12 +372,9 @@ export const Tags = () => {
                       {!editingUnit && (
                           <div className="mb-4">
                                {isAutoDetected ? (
-                                   // A. Auto-Detected: Static Text
-                                   <div className="flex items-center justify-between text-sm bg-slate-50 p-2 rounded border border-slate-200">
-                                       <span className="font-bold text-slate-700">Author: {author}</span>
-                                       <span className="text-xs text-green-600 flex items-center bg-green-50 px-2 py-0.5 rounded-full border border-green-200">
-                                           <CheckIcon className="w-3 h-3 mr-1" /> Verified
-                                       </span>
+                                   // A. Auto-Detected: Minimalist
+                                   <div className="mb-4 text-xs font-bold text-slate-500 uppercase tracking-wide">
+                                       Author: <span className="text-slate-800 normal-case">{author}</span>
                                    </div>
                                ) : (
                                    // B. Manual Selection
