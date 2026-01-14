@@ -331,14 +331,20 @@ const TaxonomyNode = ({
                         return (
                             <div 
                                 key={u.id}
-                                className={`ml-5 text-xs py-1 px-2 mb-1 rounded cursor-pointer truncate transition-all duration-500 ${
+                                // CHANGED: Added 'flex items-center' to align icon and text
+                                className={`flex items-center ml-0 text-xs py-1 px-1 mb-1 rounded cursor-pointer truncate transition-all duration-500 ${
                                     isActive 
                                     ? 'bg-yellow-100 text-yellow-800 font-bold border border-yellow-300' 
                                     : 'text-slate-500 hover:text-blue-600 hover:bg-blue-50'
                                 }`}
                                 onClick={() => chrome.runtime.sendMessage({ type: 'NAVIGATE_TO_UNIT', unit_id: u.id, ...u })}
                             >
-                                📄 {u.text_content.substring(0, 30)}...
+                                {/* [NEW] Spacer to match the Chevron width (w-4 = 1rem approx, matching the chevron container) */}
+                                <span className="w-4 inline-block flex-shrink-0"></span>
+
+                                {/* Icon & Text */}
+                                <span className="mr-1">📄</span>
+                                <span className="truncate">{u.text_content.substring(0, 30)}...</span>
                             </div>
                         );
                     })}
