@@ -31,11 +31,12 @@ interface Props {
     isEditMode: boolean;
     onTreeChange: (changes: {id: number, parent_id: number | null}[]) => void;
     onDeleteTag: (tag: DefinedTag, hasChildren: boolean) => void;
+    onEditTag: (tag: DefinedTag) => void; // [NEW] Callback for renaming
 }
 
 export const TaxonomyExplorer: React.FC<Props> = ({ 
     filter, viewMode, revealUnitId, refreshKey, 
-    onTagSelect, isSelectionMode, isEditMode, onTreeChange, onDeleteTag 
+    onTagSelect, isSelectionMode, isEditMode, onTreeChange, onDeleteTag, onEditTag 
 }) => {
   const { get } = useApi();
   const [tree, setTree] = useState<TreeNode[]>([]);
@@ -151,7 +152,7 @@ export const TaxonomyExplorer: React.FC<Props> = ({
 
   const displayTree = useMemo(() => processNodes(localTree), [localTree, filter, expandedNodeIds]);
 
-  // 5. Toggle Handler (Passed Down)
+  // 5. Toggle Handler
   const handleToggleExpand = (id: number) => {
       const newSet = new Set(expandedNodeIds);
       if (newSet.has(id)) newSet.delete(id);
@@ -171,11 +172,11 @@ export const TaxonomyExplorer: React.FC<Props> = ({
                node={node} 
                isEditMode={isEditMode}
                onDeleteTag={onDeleteTag}
+               onEditTag={onEditTag} // [NEW]
                highlightUnitId={revealUnitId}
                refreshKey={refreshKey}
                onTagSelect={onTagSelect}
                isSelectionMode={isSelectionMode}
-               // Pass State & Handler
                isExpanded={node.forceExpand || false}
                onToggleExpand={handleToggleExpand}
              />
@@ -194,7 +195,7 @@ export const TaxonomyExplorer: React.FC<Props> = ({
 };
 
 const TaxonomyNode = ({ 
-    node, isEditMode, onDeleteTag, highlightUnitId, refreshKey, onTagSelect, isSelectionMode, isExpanded, onToggleExpand
+    node, isEditMode, onDeleteTag, onEditTag, highlightUnitId, refreshKey, onTagSelect, isSelectionMode, isExpanded, onToggleExpand
 }: any) => {
     const { get } = useApi();
     const [units, setUnits] = useState<LogicalUnit[]>([]);
@@ -209,11 +210,12 @@ const TaxonomyNode = ({
         disabled: !isEditMode
     });
 
+    // Lazy Load: Only fetch if expanded AND NOT in Edit Mode (optimization)
     useEffect(() => {
-        if (isExpanded && units.length === 0) {
+        if (isExpanded && units.length === 0 && !isEditMode) {
              get(`/api/units?tag_id=${node.id}&limit=10`).then(setUnits).catch(() => {});
         }
-    }, [isExpanded, refreshKey]);
+    }, [isExpanded, refreshKey, isEditMode]);
 
     const style = transform ? {
         transform: CSS.Translate.toString(transform),
@@ -223,7 +225,11 @@ const TaxonomyNode = ({
 
     const handleLabelClick = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (isEditMode) return; 
+        if (isEditMode) {
+            // [NEW] Open Rename Menu
+            if (!node.is_official) onEditTag(node);
+            return;
+        } 
         if (isSelectionMode) {
             onTagSelect(node);
         } else {
@@ -245,17 +251,17 @@ const TaxonomyNode = ({
                     className="mr-1 text-slate-400 cursor-pointer p-0.5 hover:text-slate-700 hover:bg-slate-200 rounded"
                     onClick={(e) => { e.stopPropagation(); onToggleExpand(node.id); }}
                 >
-                     {node.children.length > 0 || (isExpanded && units.length > 0) ? (
+                     {node.children.length > 0 || (isExpanded && units.length > 0 && !isEditMode) ? (
                          isExpanded ? <ChevronDownIcon className="h-3 w-3" /> : <ChevronRightIcon className="h-3 w-3" />
                      ) : <span className="w-3 h-3 block"></span>}
                 </div>
 
                 <div 
                     className={`flex items-center flex-1 cursor-pointer hover:bg-slate-100 px-1 rounded ${
-                        isSelectionMode && !isEditMode ? 'hover:text-blue-600 hover:font-semibold' : 'text-slate-700'
+                        (isSelectionMode && !isEditMode) || (isEditMode && !node.is_official) ? 'hover:text-blue-600 hover:font-semibold' : 'text-slate-700'
                     }`}
                     onClick={handleLabelClick}
-                    title={isSelectionMode ? "Click to add this tag" : "Click to expand"}
+                    title={isEditMode ? "Rename tag" : (isSelectionMode ? "Click to add this tag" : "Click to expand")}
                 >
                     <span className="mr-1.5">
                         {node.is_official ? <BuildingLibraryIcon className="h-3 w-3 text-amber-500"/> : <UserIcon className="h-3 w-3 text-blue-400"/>}
@@ -281,17 +287,18 @@ const TaxonomyNode = ({
                             node={child} 
                             isEditMode={isEditMode} 
                             onDeleteTag={onDeleteTag}
+                            onEditTag={onEditTag} // [NEW]
                             highlightUnitId={highlightUnitId}
                             refreshKey={refreshKey}
                             onTagSelect={onTagSelect}
                             isSelectionMode={isSelectionMode}
-                            // Recursive Props
                             isExpanded={child.forceExpand || false}
                             onToggleExpand={onToggleExpand} 
                         />
                     ))}
                     
-                    {units.map((u: LogicalUnit) => {
+                    {/* [NEW] Hide Snippets when in Edit Mode */}
+                    {!isEditMode && units.map((u: LogicalUnit) => {
                         const isActive = highlightUnitId === u.id;
                         return (
                             <div 
