@@ -5,7 +5,7 @@ import { MainLayout } from './components/Layout/MainLayout';
 import { Label } from './features/Label';
 import { RelationshipManager } from './features/RelationshipManager';
 import { QAManager } from './features/QAManager';
-import { TaxonomyExplorer } from './features/TaxonomyExplorer';
+import { Tags } from './features/Tags';
 import { SelectionProvider } from './context/SelectionContext';
 
 export default function App() {
