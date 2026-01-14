@@ -5,16 +5,25 @@ import { TagInput, Tag } from '../components/TagInput';
 import { useApi } from '@/hooks/useApi';
 import { 
     MagnifyingGlassIcon, UserIcon, BuildingLibraryIcon, 
-    TrashIcon, PencilSquareIcon, CheckIcon, XMarkIcon 
+    TrashIcon, PencilSquareIcon, CheckIcon, XMarkIcon,
+    ChevronDownIcon 
 } from '@heroicons/react/24/solid';
 import { LogicalUnit, DefinedTag } from '@/utils/types';
+
+// [NEW] Canonical Author List
+const CANONICAL_AUTHORS = [
+    "The Báb",
+    "Bahá’u’lláh",
+    "‘Abdu’l-Bahá",
+    "Shoghi Effendi",
+    "Universal House of Justice"
+];
 
 export const Tags = () => {
   const { currentSelection, clearSelection, viewMode, setViewMode } = useSelection();
   const { post, put, del, get } = useApi();
   
   // Header State
-  const [author, setAuthor] = useState('Undefined');
   const [filterText, setFilterText] = useState('');
   
   // Edit Tree Mode
@@ -23,11 +32,16 @@ export const Tags = () => {
   
   // Editor State
   const [editingUnit, setEditingUnit] = useState<LogicalUnit | null>(null);
-  const [editingTag, setEditingTag] = useState<DefinedTag | null>(null); // [NEW] Renaming state
+  const [editingTag, setEditingTag] = useState<DefinedTag | null>(null);
   const [selectedTags, setSelectedTags] = useState<Tag[]>([]); 
   const [isSaving, setIsSaving] = useState(false);
   const [revealUnitId, setRevealUnitId] = useState<number | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // [NEW] Author Logic
+  const [author, setAuthor] = useState('Undefined');
+  const [isAutoDetected, setIsAutoDetected] = useState(false); // True if came from Scraper
+  const [showManualAuthorInput, setShowManualAuthorInput] = useState(false); // For "Other" flow
 
   // 1. Listen for clicks/selection
   useEffect(() => {
@@ -38,8 +52,12 @@ export const Tags = () => {
         setEditingTag(null);
         setEditingUnit(msg.unit);
         setRevealUnitId(msg.unit.id);
-        setAuthor(msg.unit.author || 'Undefined'); // [NEW] Pre-fill
         
+        // Existing units are "locked" to whatever is in DB, treat as auto-detected for UI simplicity
+        setAuthor(msg.unit.author || 'Undefined');
+        setIsAutoDetected(true); 
+        setShowManualAuthorInput(false);
+
         get(`/api/units/${msg.unit.id}/tags`).then((tags: Tag[]) => {
             setSelectedTags(tags); 
         });
@@ -47,9 +65,17 @@ export const Tags = () => {
 
       // CASE B: New Text Selected
       if (msg.type === 'TEXT_SELECTED') {
-         // [NEW] Pre-fill from Scraper Context
-         if (msg.context && msg.context.author) {
+         // Check scraper context
+         const detected = msg.context && msg.context.author && msg.context.author !== 'Undefined';
+         
+         if (detected) {
              setAuthor(msg.context.author);
+             setIsAutoDetected(true);
+             setShowManualAuthorInput(false);
+         } else {
+             setAuthor('Undefined'); // Reset to default
+             setIsAutoDetected(false);
+             setShowManualAuthorInput(false);
          }
       }
     };
@@ -63,6 +89,7 @@ export const Tags = () => {
       setEditingUnit(null); 
       setEditingTag(null);
       setSelectedTags([]); 
+      // Author reset handled in listener above based on message content
     }
   }, [currentSelection]);
 
@@ -73,6 +100,13 @@ export const Tags = () => {
 
   const handleCreate = async () => {
     if (!currentSelection) return;
+    
+    // Validation: Don't save "Undefined"
+    if (author === 'Undefined') {
+        alert("Please select an author.");
+        return;
+    }
+
     setIsSaving(true);
     try {
       await post('/api/contribute/unit', {
@@ -124,7 +158,6 @@ export const Tags = () => {
     }
   };
 
-  // [NEW] Handle Rename Tag
   const handleRename = async () => {
       if (!editingTag || !editingTag.label.trim()) return;
       setIsSaving(true);
@@ -182,7 +215,7 @@ export const Tags = () => {
   };
 
   const handleTagClickFromTree = (tag: DefinedTag) => {
-    if (isEditorVisible && !editingTag) { // Only add if we are in Snippet Editor mode
+    if (isEditorVisible && !editingTag) { 
         if (!selectedTags.some(t => t.id === tag.id)) {
             setSelectedTags(prev => [...prev, { id: tag.id, label: tag.label }]);
         }
@@ -194,9 +227,10 @@ export const Tags = () => {
     setEditingUnit(null);
     setEditingTag(null);
     setRevealUnitId(null);
+    setIsAutoDetected(false); // Reset
+    setShowManualAuthorInput(false); // Reset
   };
 
-  // [UPDATED] Visibility logic
   const isEditorVisible = !!currentSelection || !!editingUnit || !!editingTag;
 
   return (
@@ -277,11 +311,11 @@ export const Tags = () => {
             revealUnitId={revealUnitId}
             refreshKey={refreshKey}
             onTagSelect={handleTagClickFromTree}
-            isSelectionMode={isEditorVisible && !editingTag} // Disable selecting tags for units if we are renaming a tag
+            isSelectionMode={isEditorVisible && !editingTag}
             isEditMode={isEditMode}
             onTreeChange={setTreeChanges}
             onDeleteTag={handleTagDeleteRequest}
-            onEditTag={setEditingTag} // [NEW]
+            onEditTag={setEditingTag}
         />
       </div>
 
@@ -333,6 +367,72 @@ export const Tags = () => {
               ) : (
                   /* CONDITION: Editing Unit (Snippet) */
                   <>
+                      {/* [NEW] Author Selection Logic */}
+                      {/* Only show if we are Creating New (not editing existing, though you can enable it for both if you want) */}
+                      {!editingUnit && (
+                          <div className="mb-4">
+                               {isAutoDetected ? (
+                                   // A. Auto-Detected: Static Text
+                                   <div className="flex items-center justify-between text-sm bg-slate-50 p-2 rounded border border-slate-200">
+                                       <span className="font-bold text-slate-700">Author: {author}</span>
+                                       <span className="text-xs text-green-600 flex items-center bg-green-50 px-2 py-0.5 rounded-full border border-green-200">
+                                           <CheckIcon className="w-3 h-3 mr-1" /> Verified
+                                       </span>
+                                   </div>
+                               ) : (
+                                   // B. Manual Selection
+                                   <div>
+                                       <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Author</label>
+                                       
+                                       {showManualAuthorInput ? (
+                                           // C. Free Text Input (if "Other" was clicked)
+                                           <div className="relative">
+                                               <input 
+                                                   type="text" 
+                                                   className="w-full p-2 pl-8 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                                   value={author === 'Undefined' ? '' : author}
+                                                   onChange={(e) => setAuthor(e.target.value)}
+                                                   placeholder="Enter Author Name..."
+                                                   autoFocus
+                                               />
+                                               <UserIcon className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400" />
+                                               <button 
+                                                    onClick={() => { setShowManualAuthorInput(false); setAuthor('Undefined'); }}
+                                                    className="absolute right-2 top-2 text-xs text-blue-600 hover:underline"
+                                               >
+                                                   Cancel
+                                               </button>
+                                           </div>
+                                       ) : (
+                                           // D. Dropdown
+                                           <div className="relative">
+                                               <select 
+                                                   className="w-full p-2 pl-8 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none appearance-none bg-white"
+                                                   value={author}
+                                                   onChange={(e) => {
+                                                       if (e.target.value === 'OTHER_MANUAL') {
+                                                           setShowManualAuthorInput(true);
+                                                           setAuthor('');
+                                                       } else {
+                                                           setAuthor(e.target.value);
+                                                       }
+                                                   }}
+                                               >
+                                                   <option value="Undefined" disabled>Select an Author...</option>
+                                                   {CANONICAL_AUTHORS.map(name => (
+                                                       <option key={name} value={name}>{name}</option>
+                                                   ))}
+                                                   <option value="OTHER_MANUAL">Other...</option>
+                                               </select>
+                                               <UserIcon className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400" />
+                                               <ChevronDownIcon className="absolute right-2.5 top-3 w-4 h-4 text-slate-400 pointer-events-none" />
+                                           </div>
+                                       )}
+                                   </div>
+                               )}
+                          </div>
+                      )}
+
                       <TagInput tags={selectedTags} onChange={setSelectedTags} />
                       
                       <div className="mt-4 flex justify-end">
