@@ -1,207 +1,174 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useApi } from '@/hooks/useApi';
 import { DefinedTag, LogicalUnit } from '@/utils/types';
-import { useSelection } from '@/side_panel/context/SelectionContext';
-import { ChevronRightIcon, ChevronDownIcon, MagnifyingGlassIcon, UserIcon, BuildingLibraryIcon } from '@heroicons/react/24/solid';
+import { ChevronRightIcon, ChevronDownIcon, UserIcon, BuildingLibraryIcon } from '@heroicons/react/24/solid';
 
-// Extended type for tree logic
+// 1. Updated Interfaces to support Tree Logic & Props
 interface TreeNode extends DefinedTag {
   children: TreeNode[];
   units?: LogicalUnit[];
+  forceExpand?: boolean; 
 }
 
-export const TaxonomyExplorer = () => {
-  const { get } = useApi();
-  const { viewMode, setViewMode } = useSelection();
-  const [tree, setTree] = useState<TreeNode[]>([]);
-  const [filter, setFilter] = useState('');
-  const [loading, setLoading] = useState(true);
+interface Props {
+    filter: string;
+    viewMode: 'mine' | 'all';
+    revealUnitId: number | null; // ID of the unit clicked on page (to auto-expand)
+}
 
+export const TaxonomyExplorer: React.FC<Props> = ({ filter, viewMode, revealUnitId }) => {
+  const { get } = useApi();
+  const [tree, setTree] = useState<TreeNode[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expandedNodeIds, setExpandedNodeIds] = useState<Set<number>>(new Set());
+
+  // 2. Initial Load
   useEffect(() => {
     get('/api/tags/tree')
       .then((data) => setTree(data))
-      .catch((err) => console.error("Failed to load taxonomy", err))
+      .catch((err) => console.error(err))
       .finally(() => setLoading(false));
   }, []);
 
-  // Recursive Filter Logic
-  const filterNodes = (nodes: TreeNode[], query: string, mode: 'mine' | 'all'): TreeNode[] => {
-    return nodes
-      .map(node => {
-        const matchesText = node.label.toLowerCase().includes(query.toLowerCase());
-        
-        // 2. Mode Match (If mode is 'mine', hide official tags unless they have 'my' children?)
-        // actually, simpler: If mode is 'mine', only show nodes that are NOT official (or have user contributions).
-        // For MVP: Let's assume the API returns (Official + Mine). 
-        // We filter out 'is_official' if mode === 'mine', unless you want to see the official PARENT of your tag.
-        
-        // Let's stick to simple text filtering for now, and let the Toggle control the API or specific visual cues.
-        // If you want strict filtering:
-        if (mode === 'mine' && node.is_official) {
-           // This logic depends on if you want to see the "Structure" (Official) that holds your "Content" (Private)
-           // usually yes, so we might just filter LEAF nodes. 
-           // For now, let's keep the Tree unified but use the toggle to filter HIGHLIGHTS on page.
-        }
-        
-        const filteredChildren = filterNodes(node.children || [], query, mode);
-        
-        if (matchesText || filteredChildren.length > 0) {
-          return { ...node, children: filteredChildren, forceExpand: !!query }; 
+  // 3. Auto-Expand Logic (When a user clicks a highlight on the page)
+  useEffect(() => {
+    if (!revealUnitId) return;
+
+    // Helper: Find full path to a tagID in the tree
+    const findPath = (nodes: TreeNode[], targetTagId: number, path: number[] = []): number[] | null => {
+        for (const node of nodes) {
+            if (node.id === targetTagId) return [...path, node.id];
+            if (node.children) {
+                const result = findPath(node.children, targetTagId, [...path, node.id]);
+                if (result) return result;
+            }
         }
         return null;
-      })
-      .filter(Boolean) as TreeNode[];
+    };
+
+    // Fetch tags for the clicked unit, then expand the tree to show them
+    get(`/api/units/${revealUnitId}/tags`).then((tags: DefinedTag[]) => {
+        const idsToExpand = new Set(expandedNodeIds);
+        tags.forEach(tag => {
+            const path = findPath(tree, tag.id);
+            if (path) path.forEach(id => idsToExpand.add(id));
+        });
+        setExpandedNodeIds(idsToExpand);
+    });
+  }, [revealUnitId, tree]);
+
+  // 4. Recursive Filter Logic (Strict Separation)
+  const processNodes = (nodes: TreeNode[]): TreeNode[] => {
+    return nodes.map(node => {
+        // A. Strict Mode Filtering
+        let visible = true;
+        if (viewMode === 'mine' && node.is_official) visible = false; 
+        if (viewMode === 'all' && !node.is_official) visible = false;
+
+        // B. Text Filtering
+        const matchesText = node.label.toLowerCase().includes(filter.toLowerCase());
+        
+        // Recurse
+        const processedChildren = processNodes(node.children || []);
+        
+        // C. Visibility Rules
+        // If hidden by mode, but has valid children, we usually hide strict. 
+        // Here we return null if the node itself violates the viewMode.
+        if (!visible) return null;
+
+        // If visible and matches text, keep it
+        if (matchesText) {
+            return { ...node, children: processedChildren, forceExpand: !!filter || expandedNodeIds.has(node.id) };
+        }
+        
+        // If children matched, keep parent to show path
+        if (processedChildren.length > 0) {
+            return { ...node, children: processedChildren, forceExpand: true };
+        }
+
+        return null;
+    }).filter(Boolean) as TreeNode[];
   };
 
-  const displayTree = filterNodes(tree, filter, viewMode);
+  const displayTree = useMemo(() => processNodes(tree), [tree, filter, viewMode, expandedNodeIds]);
+
+  if (loading) return <div className="p-4 text-xs text-slate-400">Loading...</div>;
 
   return (
-    <div className="flex flex-col h-full">
-      {/* HEADER: Search + Toggle */}
-      <div className="p-4 border-b border-slate-200 bg-white sticky top-0 z-10 space-y-3">
-        
-        {/* View Mode Toggle */}
-        <div className="flex bg-slate-100 p-1 rounded-lg">
-          <button
-            onClick={() => setViewMode('mine')}
-            className={`flex-1 flex items-center justify-center py-1 text-xs font-semibold rounded-md transition-colors ${
-              viewMode === 'mine' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <UserIcon className="w-3 h-3 mr-1" />
-            My Tags
-          </button>
-          <button
-            onClick={() => setViewMode('all')}
-            className={`flex-1 flex items-center justify-center py-1 text-xs font-semibold rounded-md transition-colors ${
-              viewMode === 'all' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <BuildingLibraryIcon className="w-3 h-3 mr-1" />
-            View Examples
-          </button>
-        </div>
-
-        {/* Search Bar */}
-        <div className="relative">
-          <MagnifyingGlassIcon className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
-          <input 
-            type="text" 
-            placeholder="Filter taxonomy..." 
-            className="w-full pl-8 pr-2 py-2 text-sm border rounded bg-slate-50 focus:bg-white focus:ring-1 focus:ring-blue-500 outline-none"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* TREE CONTENT */}
-      <div className="flex-1 overflow-y-auto p-2">
-        {loading ? (
-            <div className="text-center text-slate-400 mt-10">Loading Taxonomy...</div>
-        ) : (
-            displayTree.map(node => <TaxonomyNode key={node.id} node={node} />)
-        )}
-      </div>
+    <div className="pb-10"> 
+       {displayTree.length === 0 && <div className="p-4 text-sm text-slate-400">No tags found for this view.</div>}
+       {displayTree.map(node => (
+         <TaxonomyNode 
+            key={node.id} 
+            node={node} 
+            highlightUnitId={revealUnitId}
+            forceExpand={node.forceExpand}
+         />
+       ))}
     </div>
   );
 };
 
-// Recursive Node Component
-const TaxonomyNode = ({ node }: { node: TreeNode & { forceExpand?: boolean } }) => {
-  const { get } = useApi();
-  const [expanded, setExpanded] = useState(node.forceExpand || false);
-  const [units, setUnits] = useState<LogicalUnit[]>([]);
-  const [loadingUnits, setLoadingUnits] = useState(false);
-
-  // Sync expansion if search forces it
-  useEffect(() => {
-    if (node.forceExpand) setExpanded(true);
-  }, [node.forceExpand]);
-
-  const handleToggle = async () => {
-    setExpanded(!expanded);
+// 5. Node Component (Now accepts highlightUnitId)
+const TaxonomyNode = ({ node, highlightUnitId, forceExpand }: { node: TreeNode, highlightUnitId: number | null, forceExpand?: boolean }) => {
+    const { get } = useApi();
+    const [expanded, setExpanded] = useState(forceExpand || false);
+    const [units, setUnits] = useState<LogicalUnit[]>([]);
     
-    // Lazy Load units if expanding and not yet loaded
-    if (!expanded && units.length === 0) {
-        setLoadingUnits(true);
-        try {
-            // Fetch units for this specific tag
-            const data = await get(`/api/units?tag_id=${node.id}&limit=5`); 
-            setUnits(data);
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setLoadingUnits(false);
+    useEffect(() => {
+        if(forceExpand) setExpanded(true);
+    }, [forceExpand]);
+
+    // Lazy load units on expand
+    useEffect(() => {
+        if (expanded && units.length === 0) {
+             get(`/api/units?tag_id=${node.id}&limit=10`).then(setUnits).catch(() => {});
         }
-    }
-  };
-  
-  const handleUnitClick = (unit: LogicalUnit) => {
-    if (!unit.title) console.warn("Unit missing title:", unit);
-    // Send message to background to navigate/scroll
-    chrome.runtime.sendMessage({
-      type: 'NAVIGATE_TO_UNIT',
-      source_code: unit.source_code,
-      source_page_id: unit.source_page_id,
-      title: unit.title,
-      unit_id: unit.id
-    });
-  };
+    }, [expanded]);
 
-  return (
-    <div className="ml-2">
-      {/* Node Label */}
-      <div 
-        className="flex items-center py-1 cursor-pointer hover:bg-slate-100 rounded text-sm text-slate-700 select-none"
-        onClick={handleToggle}
-      >
-        <span className="mr-1 text-slate-400">
-          {node.children.length > 0 ? (
-             expanded ? <ChevronDownIcon className="h-4 w-4" /> : <ChevronRightIcon className="h-4 w-4" />
-          ) : (
-             <span className="w-4 h-4 inline-block" /> // spacer
-          )}
-        </span>
-        
-        {/* ICON BASED ON SCOPE */}
-        <span className="mr-1.5" title={node.is_official ? "Official Tag" : "Personal Tag"}>
-          {node.is_official ? (
-            <BuildingLibraryIcon className="h-3.5 w-3.5 text-amber-500" />
-          ) : (
-            <UserIcon className="h-3.5 w-3.5 text-slate-400 group-hover:text-blue-500" />
-          )}
-        </span>
+    return (
+        <div className="ml-3 border-l border-slate-200 pl-2">
+            <div 
+                className="flex items-center py-1 cursor-pointer hover:bg-slate-100 rounded text-sm select-none" 
+                onClick={() => setExpanded(!expanded)}
+            >
+                <span className="mr-1 text-slate-400">
+                    {node.children.length > 0 || units.length > 0 ? (
+                         expanded ? <ChevronDownIcon className="h-3 w-3" /> : <ChevronRightIcon className="h-3 w-3" />
+                    ) : <span className="w-3 h-3 block"></span>}
+                </span>
+                <span className="mr-1.5">
+                    {node.is_official ? <BuildingLibraryIcon className="h-3 w-3 text-amber-500"/> : <UserIcon className="h-3 w-3 text-blue-400"/>}
+                </span>
+                <span className="text-slate-700">{node.label}</span>
+            </div>
 
-        <span className={node.is_official ? "font-semibold text-slate-800" : "font-medium text-slate-600"}>
-          {node.label}
-        </span>
-      </div>
+            {expanded && (
+                <div>
+                    {/* Render Children */}
+                    {node.children.map(child => (
+                        <TaxonomyNode key={child.id} node={child} highlightUnitId={highlightUnitId} forceExpand={child.forceExpand}/>
+                    ))}
 
-      {/* Children & Units */}
-      {expanded && (
-        <div className="ml-4 border-l border-slate-200 pl-2">
-          
-          {/* 1. Associated Units (Preview) */}
-          {loadingUnits && <div className="text-xs text-slate-400 py-1">Loading items...</div>}
-          
-          {units.map(unit => (
-              <div 
-                key={`u-${unit.id}`} 
-                onClick={() => handleUnitClick(unit)}
-                className="text-xs text-slate-500 py-1 px-2 hover:bg-blue-50 hover:text-blue-600 cursor-pointer truncate border-b border-slate-100 last:border-0"
-                title={unit.text_content}
-              >
-                  📄 "{unit.text_content.substring(0, 40)}..."
-              </div>
-          ))}
-
-          {/* 2. Nested Tags */}
-          {node.children.map(child => (
-            <TaxonomyNode key={child.id} node={{...child, forceExpand: node.forceExpand}} />
-          ))}
+                    {/* Render Units */}
+                    {units.map(u => {
+                        const isActive = highlightUnitId === u.id;
+                        return (
+                            <div 
+                                key={u.id}
+                                className={`ml-5 text-xs py-1 px-2 mb-1 rounded cursor-pointer truncate transition-all duration-500 ${
+                                    isActive 
+                                    ? 'bg-yellow-100 text-yellow-800 font-bold border border-yellow-300' 
+                                    : 'text-slate-500 hover:text-blue-600 hover:bg-blue-50'
+                                }`}
+                                onClick={() => chrome.runtime.sendMessage({ type: 'NAVIGATE_TO_UNIT', unit_id: u.id, ...u })}
+                            >
+                                📄 {u.text_content.substring(0, 30)}...
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
         </div>
-      )}
-    </div>
-  );
+    );
 };
