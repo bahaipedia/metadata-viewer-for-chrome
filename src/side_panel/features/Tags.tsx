@@ -14,6 +14,7 @@ export const Tags = () => {
   const { post, put, del, get } = useApi();
   
   // Header State
+  const [author, setAuthor] = useState('Undefined');
   const [filterText, setFilterText] = useState('');
   
   // Edit Tree Mode
@@ -28,18 +29,28 @@ export const Tags = () => {
   const [revealUnitId, setRevealUnitId] = useState<number | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // 1. Listen for clicks on existing highlights
+  // 1. Listen for clicks/selection
   useEffect(() => {
     const listener = (msg: any) => {
+      // CASE A: Existing Unit Clicked
       if (msg.type === 'UNIT_CLICKED' && msg.unit) {
         clearSelection();
         setEditingTag(null);
         setEditingUnit(msg.unit);
         setRevealUnitId(msg.unit.id);
+        setAuthor(msg.unit.author || 'Undefined'); // [NEW] Pre-fill
         
         get(`/api/units/${msg.unit.id}/tags`).then((tags: Tag[]) => {
             setSelectedTags(tags); 
         });
+      }
+
+      // CASE B: New Text Selected
+      if (msg.type === 'TEXT_SELECTED') {
+         // [NEW] Pre-fill from Scraper Context
+         if (msg.context && msg.context.author) {
+             setAuthor(msg.context.author);
+         }
       }
     };
     chrome.runtime.onMessage.addListener(listener);
@@ -72,7 +83,7 @@ export const Tags = () => {
         start_char_index: currentSelection.offsets.start,
         end_char_index: currentSelection.offsets.end,
         unit_type: 'user_highlight',
-        author: 'Undefined',
+        author: author,
         tags: selectedTags.map(t => t.id) 
       });
       triggerRefresh();
@@ -322,6 +333,21 @@ export const Tags = () => {
               ) : (
                   /* CONDITION: Editing Unit (Snippet) */
                   <>
+                      {/* [NEW] Author Input Field */}
+                      <div className="mb-4">
+                           <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Author</label>
+                           <div className="relative">
+                               <input 
+                                   type="text" 
+                                   className="w-full p-2 pl-8 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                   value={author}
+                                   onChange={(e) => setAuthor(e.target.value)}
+                                   placeholder="Author Name"
+                               />
+                               <UserIcon className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400" />
+                           </div>
+                      </div>
+
                       <TagInput tags={selectedTags} onChange={setSelectedTags} />
                       
                       <div className="mt-4 flex justify-end">
