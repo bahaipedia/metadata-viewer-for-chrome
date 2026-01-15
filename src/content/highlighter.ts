@@ -214,10 +214,122 @@ const renderHighlights = () => {
     // 3. Draw
     unitsToRender.forEach(highlightUnit);
 
-    // 4. Check for pending scroll
+    // 4. NEW: Check for pending scroll (Fixes race condition on new page load)
     if (pendingScrollId) {
         attemptScroll();
     }
 };
 
-// ... (attemptScroll, highlightUnit, safeHighlightRange remain unchanged) ...
+// Helper to perform the scroll with Retry Logic
+const attemptScroll = (attempts = 10) => {
+    if (!pendingScrollId) return;
+
+    const el = document.querySelector(`.rag-highlight[data-unit-id="${pendingScrollId}"]`);
+    
+    if (el) {
+        // FOUND IT: Scroll and Flash
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        const originalTransition = (el as HTMLElement).style.transition;
+        const originalBg = (el as HTMLElement).style.backgroundColor;
+        
+        (el as HTMLElement).style.transition = "background-color 0.5s ease";
+        (el as HTMLElement).style.backgroundColor = "rgba(255, 235, 59, 0.8)"; // Bright Yellow
+
+        setTimeout(() => {
+            (el as HTMLElement).style.backgroundColor = originalBg;
+            setTimeout(() => {
+                (el as HTMLElement).style.transition = originalTransition;
+            }, 500);
+        }, 1500);
+
+        pendingScrollId = null; // Clear queue
+    } else if (attempts > 0) {
+        // NOT FOUND YET: Retry in 250ms
+        // IMPORTANT: No console.error here. We expect this to fail a few times.
+        setTimeout(() => attemptScroll(attempts - 1), 250);
+    } else {
+        // ONLY log if we have run out of attempts (e.g. after ~2.5 seconds)
+        console.warn(`Unit ${pendingScrollId} not found in DOM after retries.`);
+        pendingScrollId = null;
+    }
+};
+
+const highlightUnit = (unit: LogicalUnit) => {
+    try {
+        const range = findRangeFromOffsets(unit.start_char_index, unit.end_char_index);
+        
+        if (!range) {
+            // console.warn(`Could not map unit ${unit.id} to DOM.`);
+            return;
+        }
+        safeHighlightRange(range, unit);
+    } catch (e) {
+        console.error("Highlight error for unit", unit.id, e);
+    }
+};
+
+const safeHighlightRange = (range: Range, unit: LogicalUnit) => {
+    const commonAncestor = range.commonAncestorContainer;
+    const nodesToWrap: { node: Node, start: number, end: number }[] = [];
+
+    if (commonAncestor.nodeType === Node.TEXT_NODE) {
+        nodesToWrap.push({
+            node: commonAncestor,
+            start: range.startOffset,
+            end: range.endOffset
+        });
+    } else {
+        const walker = document.createTreeWalker(
+            commonAncestor,
+            NodeFilter.SHOW_TEXT,
+            {
+                acceptNode: (node) => {
+                    if (range.intersectsNode(node)) return NodeFilter.FILTER_ACCEPT;
+                    return NodeFilter.FILTER_REJECT;
+                }
+            }
+        );
+
+        let currentNode = walker.nextNode();
+        while (currentNode) {
+            const isStartNode = (currentNode === range.startContainer);
+            const isEndNode = (currentNode === range.endContainer);
+            
+            const startOffset = isStartNode ? range.startOffset : 0;
+            const endOffset = isEndNode ? range.endOffset : (currentNode.textContent?.length || 0);
+
+            if (currentNode.textContent && currentNode.textContent.trim().length > 0) {
+                 nodesToWrap.push({ node: currentNode, start: startOffset, end: endOffset });
+            }
+            
+            currentNode = walker.nextNode();
+        }
+    }
+
+    nodesToWrap.forEach(({ node, start, end }) => {
+        const wrapper = document.createElement('span');
+        wrapper.className = `rag-highlight unit-type-${unit.unit_type || 'default'}`;
+        wrapper.dataset.unitId = String(unit.id);
+        
+        wrapper.addEventListener('mouseenter', () => {
+            const allParts = document.querySelectorAll(`.rag-highlight[data-unit-id="${unit.id}"]`);
+            allParts.forEach(el => el.classList.add('active'));
+        });
+
+        wrapper.addEventListener('mouseleave', () => {
+            const allParts = document.querySelectorAll(`.rag-highlight[data-unit-id="${unit.id}"]`);
+            allParts.forEach(el => el.classList.remove('active'));
+        });
+
+        wrapper.addEventListener('click', (e) => {
+            e.stopPropagation(); 
+            chrome.runtime.sendMessage({ type: 'UNIT_CLICKED', unit });
+        });
+
+        const rangePart = document.createRange();
+        rangePart.setStart(node, start);
+        rangePart.setEnd(node, end);
+        rangePart.surroundContents(wrapper);
+    });
+};
