@@ -88,48 +88,88 @@ export const initHighlighter = async () => {
     });
 };
 
-// --- [NEW] HEALING LOGIC ---
+// Helper: Extract ONLY visible text (ignores <script>, <style>, etc)
+// This ensures our "Search" coordinates match what the user actually sees.
+const getCleanPageText = (): string => {
+    const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT,
+        {
+            acceptNode: (node) => {
+                const parentTag = node.parentElement?.tagName.toLowerCase();
+                if (['script', 'style', 'noscript', 'meta'].includes(parentTag || '')) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+                // Filter out empty whitespace nodes if your offset_calculator ignores them
+                // For now, we keep them but collapse spaces in comparison logic
+                return NodeFilter.FILTER_ACCEPT;
+            }
+        }
+    );
+
+    let text = "";
+    let node;
+    while ((node = walker.nextNode())) {
+        text += node.textContent;
+    }
+    return text;
+};
 
 const verifyAndHealUnits = async () => {
-    const fullPageText = document.body.textContent || "";
     const updatesToSync: any[] = [];
     
-    // Helper to normalize text (ignore extra whitespace differences)
+    // We only generate the expensive "clean text" IF we actually need to heal something.
+    let lazyCleanText: string | null = null;
+    const getLazyText = () => {
+        if (!lazyCleanText) lazyCleanText = getCleanPageText();
+        return lazyCleanText;
+    };
+
     const normalize = (str: string) => str.replace(/\s+/g, ' ').trim();
 
     cachedUnits.forEach(unit => {
-        // Skip units already marked as broken by Admin (unless we want to auto-retry them?)
-        // For now, let's try to heal everything that isn't already flagged broken locally.
         if ((unit as any).broken_index) return;
 
-        const currentTextAtSpot = fullPageText.substring(unit.start_char_index, unit.end_char_index);
+        // 1. PRIMARY CHECK: Trust the existing offset calculator first.
+        // If findRangeFromOffsets works and text matches, THE UNIT IS FINE.
+        // Do not verify against raw text strings, verify against the DOM.
+        let isHealthy = false;
+        try {
+            const range = findRangeFromOffsets(unit.start_char_index, unit.end_char_index);
+            if (range) {
+                const rangeText = range.toString();
+                // Check Exact or Soft Match
+                if (rangeText === unit.text_content || normalize(rangeText) === normalize(unit.text_content)) {
+                    isHealthy = true;
+                }
+            }
+        } catch (e) {
+            isHealthy = false;
+        }
+
+        if (isHealthy) return; // SKIP HEALING
+
+        // ---------------------------------------------------------
+        // UNIT IS BROKEN -> Trigger Healer
+        // ---------------------------------------------------------
         
-        // 1. HAPPY PATH: Exact Match
-        if (currentTextAtSpot === unit.text_content) {
-            return; // Perfect. Do nothing.
-        }
-
-        // 2. SOFT MATCH: Whitespace differences
-        if (normalize(currentTextAtSpot) === normalize(unit.text_content)) {
-            return; // Good enough. Do nothing.
-        }
-
-        // 3. ANCHOR SEARCH (The Healer)
-        const healedOffsets = performAnchorSearch(unit, fullPageText);
+        const cleanPageText = getLazyText();
+        const healedOffsets = performAnchorSearch(unit, cleanPageText);
 
         if (healedOffsets) {
-            // Success! Update local cache immediately so it renders correctly
+            console.log(`[Healer] Fixed Unit ${unit.id}: Moved from ${unit.start_char_index} to ${healedOffsets.start}`);
+            
+            // Update local memory so it renders NOW
             unit.start_char_index = healedOffsets.start;
             unit.end_char_index = healedOffsets.end;
             
-            // Queue for DB update
             updatesToSync.push({
                 id: unit.id,
                 start_char_index: healedOffsets.start,
                 end_char_index: healedOffsets.end
             });
         } else {
-            // Failure! Mark as broken locally and remotely
+            console.warn(`[Healer] Failed to find Unit ${unit.id}. Marking broken.`);
             (unit as any).broken_index = 1;
             updatesToSync.push({
                 id: unit.id,
@@ -138,9 +178,7 @@ const verifyAndHealUnits = async () => {
         }
     });
 
-    // If we have any changes, send them to background
     if (updatesToSync.length > 0) {
-        console.log(`[Healer] Patching ${updatesToSync.length} units.`);
         chrome.runtime.sendMessage({
             type: 'BATCH_REALIGN_UNITS',
             updates: updatesToSync
@@ -152,41 +190,35 @@ const performAnchorSearch = (unit: LogicalUnit, pageText: string) => {
     const originalStart = unit.start_char_index;
     const textLen = unit.text_content.length;
     
-    // Define Neighborhood
+    // Define Neighborhood (search +/- 2000 chars)
     const searchStart = Math.max(0, originalStart - SEARCH_RADIUS);
     const searchEnd = Math.min(pageText.length, originalStart + textLen + SEARCH_RADIUS);
     const neighborhood = pageText.substring(searchStart, searchEnd);
 
-    // Create Anchors
     const headAnchor = unit.text_content.substring(0, ANCHOR_SIZE);
     const tailAnchor = unit.text_content.substring(unit.text_content.length - ANCHOR_SIZE);
 
-    // Search in Neighborhood
+    // Search
     const foundHeadRel = neighborhood.indexOf(headAnchor);
-    const foundTailRel = neighborhood.lastIndexOf(tailAnchor); // Use lastIndexOf to find the end of the unit if multiple tags exist
+    // Use lastIndexOf for tail to capture the widest possible match if repeated words exist
+    let foundTailRel = neighborhood.lastIndexOf(tailAnchor); 
 
-    // Validation
     if (foundHeadRel !== -1 && foundTailRel !== -1) {
-        // Calculate absolute positions
         const newStart = searchStart + foundHeadRel;
-        const newEnd = searchStart + foundTailRel + ANCHOR_SIZE; // End of tail anchor
+        const newEnd = searchStart + foundTailRel + ANCHOR_SIZE;
 
-        // Sanity Check: Is the length roughly the same? (Allow for some growth/shrinkage due to edits)
-        // If the user edited the text *between* the anchors heavily, the length might differ.
+        // Validation: New length should be "close enough" (allow 20% variance for edits)
         const newLen = newEnd - newStart;
         const lenDiff = Math.abs(newLen - textLen);
 
-        // Allow up to 20% size difference or 50 chars, whichever is greater, to account for edits.
         if (lenDiff < Math.max(50, textLen * 0.2)) {
              return { start: newStart, end: newEnd };
         }
     }
-
-    return null; // Could not heal confidently
+    return null;
 };
 
 // --- RENDER LOGIC ---
-
 const renderHighlights = () => {
     // 1. Clear Existing Highlights
     document.querySelectorAll('.rag-highlight').forEach(el => {
