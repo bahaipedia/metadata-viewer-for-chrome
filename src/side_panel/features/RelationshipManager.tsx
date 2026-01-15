@@ -251,7 +251,7 @@ export const RelationshipManager = () => {
         {/* Tooltip */}
         <div className="absolute left-0 top-full mt-2 hidden group-hover:block w-72 p-3 bg-slate-800 text-white text-xs font-normal rounded-md shadow-xl z-20 leading-relaxed">
           <p className="font-bold mb-1 border-b border-slate-600 pb-1">How to use this page:</p>
-          <p>This tab could be used to link a specific Hidden Word to the commentary or explanations about it. These connections inform bahai.chat as it's answer questions.</p>
+          <p>This tab could be used to link a specific Hidden Word to the commentary or explanations about it. These connections inform bahai.chat as it's answering questions on that particular topic.</p>
           {/* Tooltip Arrow */}
           <div className="absolute bottom-full left-6 border-8 border-transparent border-b-slate-800"></div>
         </div>
