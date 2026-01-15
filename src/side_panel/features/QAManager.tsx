@@ -196,7 +196,7 @@ export const QAManager = () => {
           {/* Tooltip */}
           <div className="absolute left-0 top-full mt-2 hidden group-hover:block w-72 p-3 bg-slate-800 text-white text-xs font-normal rounded-md shadow-xl z-20 leading-relaxed">
             <p className="font-bold mb-1 border-b border-slate-600 pb-1">How to use this page:</p>
-            <p>Type your question or use the "Paste Selection" button to pull text directly from your document. Add an answer below to complete the pair.</p>
+            <p>If you come across an authoritative answer to a specific question use this form to highlight it. Doing so would allow bahai.chat to provide the direct answer instead of trying to generate one.</p>
             {/* Tooltip Arrow */}
             <div className="absolute bottom-full left-6 border-8 border-transparent border-b-slate-800"></div>
           </div>
