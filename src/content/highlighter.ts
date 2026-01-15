@@ -90,25 +90,14 @@ export const initHighlighter = async () => {
 
 // Helper: Extract ONLY visible text (ignores <script>, <style>, etc)
 // This ensures our "Search" coordinates match what the user actually sees.
-const getCleanPageText = (): string => {
-    const walker = document.createTreeWalker(
-        document.body,
-        NodeFilter.SHOW_TEXT,
-        {
-            acceptNode: (node) => {
-                const parentTag = node.parentElement?.tagName.toLowerCase();
-                if (['script', 'style', 'noscript', 'meta'].includes(parentTag || '')) {
-                    return NodeFilter.FILTER_REJECT;
-                }
-                // Filter out empty whitespace nodes if your offset_calculator ignores them
-                // For now, we keep them but collapse spaces in comparison logic
-                return NodeFilter.FILTER_ACCEPT;
-            }
-        }
-    );
+const getContentText = (): string => {
+    const container = document.querySelector('#mw-content-text');
+    if (!container) return "";
 
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
     let text = "";
     let node;
+    
     while ((node = walker.nextNode())) {
         text += node.textContent;
     }
@@ -118,11 +107,11 @@ const getCleanPageText = (): string => {
 const verifyAndHealUnits = async () => {
     const updatesToSync: any[] = [];
     
-    // We only generate the expensive "clean text" IF we actually need to heal something.
-    let lazyCleanText: string | null = null;
-    const getLazyText = () => {
-        if (!lazyCleanText) lazyCleanText = getCleanPageText();
-        return lazyCleanText;
+    // Lazy-load the massive text string only if we actually encounter a failure
+    let lazyPageText: string | null = null;
+    const getPageText = () => {
+        if (!lazyPageText) lazyPageText = getContentText();
+        return lazyPageText;
     };
 
     const normalize = (str: string) => str.replace(/\s+/g, ' ').trim();
@@ -130,15 +119,13 @@ const verifyAndHealUnits = async () => {
     cachedUnits.forEach(unit => {
         if ((unit as any).broken_index) return;
 
-        // 1. PRIMARY CHECK: Trust the existing offset calculator first.
-        // If findRangeFromOffsets works and text matches, THE UNIT IS FINE.
-        // Do not verify against raw text strings, verify against the DOM.
+        // 1. VERIFY: Can we render it right now?
         let isHealthy = false;
         try {
             const range = findRangeFromOffsets(unit.start_char_index, unit.end_char_index);
             if (range) {
                 const rangeText = range.toString();
-                // Check Exact or Soft Match
+                // Check Exact OR Soft Match
                 if (rangeText === unit.text_content || normalize(rangeText) === normalize(unit.text_content)) {
                     isHealthy = true;
                 }
@@ -147,34 +134,33 @@ const verifyAndHealUnits = async () => {
             isHealthy = false;
         }
 
-        if (isHealthy) return; // SKIP HEALING
+        if (isHealthy) return; 
 
-        // ---------------------------------------------------------
-        // UNIT IS BROKEN -> Trigger Healer
-        // ---------------------------------------------------------
-        
-        const cleanPageText = getLazyText();
-        const healedOffsets = performAnchorSearch(unit, cleanPageText);
+        // 2. HEAL: Verification failed, run the Healer
+        const pageText = getPageText();
+        if (!pageText) return; // Should not happen on valid wiki pages
 
-        if (healedOffsets) {
-            console.log(`[Healer] Fixed Unit ${unit.id}: Moved from ${unit.start_char_index} to ${healedOffsets.start}`);
+        const result = performAnchorSearch(unit, pageText);
+
+        if (result) {
+            console.log(`[Healer] Repaired Unit ${unit.id}. Shifted by ${result.start - unit.start_char_index} chars.`);
             
-            // Update local memory so it renders NOW
-            unit.start_char_index = healedOffsets.start;
-            unit.end_char_index = healedOffsets.end;
-            
+            // A. Update Local Cache (Render immediately)
+            unit.start_char_index = result.start;
+            unit.end_char_index = result.end;
+            unit.text_content = result.newText; 
+
+            // B. Queue Remote Update
             updatesToSync.push({
                 id: unit.id,
-                start_char_index: healedOffsets.start,
-                end_char_index: healedOffsets.end
+                start_char_index: result.start,
+                end_char_index: result.end,
+                text_content: result.newText
             });
         } else {
-            console.warn(`[Healer] Failed to find Unit ${unit.id}. Marking broken.`);
+            console.warn(`[Healer] Could not locate Unit ${unit.id}. Marking as broken.`);
             (unit as any).broken_index = 1;
-            updatesToSync.push({
-                id: unit.id,
-                broken_index: 1
-            });
+            updatesToSync.push({ id: unit.id, broken_index: 1 });
         }
     });
 
@@ -188,33 +174,49 @@ const verifyAndHealUnits = async () => {
 
 const performAnchorSearch = (unit: LogicalUnit, pageText: string) => {
     const originalStart = unit.start_char_index;
-    const textLen = unit.text_content.length;
+    const originalText = unit.text_content;
+
+    // 1. Setup Anchors (Bookends)
+    const headAnchor = originalText.substring(0, ANCHOR_SIZE);
+    const tailAnchor = originalText.substring(originalText.length - ANCHOR_SIZE);
+
+    // 2. Search Strategy
+    // First, look in the "Neighborhood" (+/- 5000 chars)
+    // If that fails, look at the whole page (Global Fallback)
     
-    // Define Neighborhood (search +/- 2000 chars)
-    const searchStart = Math.max(0, originalStart - SEARCH_RADIUS);
-    const searchEnd = Math.min(pageText.length, originalStart + textLen + SEARCH_RADIUS);
-    const neighborhood = pageText.substring(searchStart, searchEnd);
+    let searchStart = Math.max(0, originalStart - SEARCH_RADIUS);
+    let searchEnd = Math.min(pageText.length, originalStart + originalText.length + SEARCH_RADIUS);
+    let neighborhood = pageText.substring(searchStart, searchEnd);
 
-    const headAnchor = unit.text_content.substring(0, ANCHOR_SIZE);
-    const tailAnchor = unit.text_content.substring(unit.text_content.length - ANCHOR_SIZE);
+    const findAnchor = (anchor: string, fromEnd = false): number => {
+        // A. Neighborhood Search
+        let relIndex = fromEnd ? neighborhood.lastIndexOf(anchor) : neighborhood.indexOf(anchor);
+        if (relIndex !== -1) return searchStart + relIndex;
 
-    // Search
-    const foundHeadRel = neighborhood.indexOf(headAnchor);
-    // Use lastIndexOf for tail to capture the widest possible match if repeated words exist
-    let foundTailRel = neighborhood.lastIndexOf(tailAnchor); 
+        // B. Global Search
+        return fromEnd ? pageText.lastIndexOf(anchor) : pageText.indexOf(anchor);
+    };
 
-    if (foundHeadRel !== -1 && foundTailRel !== -1) {
-        const newStart = searchStart + foundHeadRel;
-        const newEnd = searchStart + foundTailRel + ANCHOR_SIZE;
+    const newStart = findAnchor(headAnchor, false);
+    const newEndAnchorStart = findAnchor(tailAnchor, true); // Look for tail specifically
 
-        // Validation: New length should be "close enough" (allow 20% variance for edits)
-        const newLen = newEnd - newStart;
-        const lenDiff = Math.abs(newLen - textLen);
+    if (newStart !== -1 && newEndAnchorStart !== -1) {
+        const newEnd = newEndAnchorStart + ANCHOR_SIZE;
+        
+        // 3. Validation
+        if (newEnd <= newStart) return null; // Tail before Head
 
-        if (lenDiff < Math.max(50, textLen * 0.2)) {
-             return { start: newStart, end: newEnd };
+        const newText = pageText.substring(newStart, newEnd);
+        
+        // Length Check: Allow up to 30% change (for deleted templates) OR 50 chars variance
+        const lenDiff = Math.abs(newText.length - originalText.length);
+        const allowedDiff = Math.max(50, originalText.length * 0.3);
+
+        if (lenDiff < allowedDiff) {
+            return { start: newStart, end: newEnd, newText };
         }
     }
+
     return null;
 };
 
