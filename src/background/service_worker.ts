@@ -24,6 +24,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true; 
     }
 
+    if (request.type === 'BATCH_REALIGN_UNITS') {
+        const { updates } = request;
+        if (updates && updates.length > 0) {
+            // Fire and forget (don't await response in the UI thread)
+            batchRealignUnits(updates); 
+        }
+        return true;
+    }
+
     // --- Handle Refresh Trigger from Side Panel ---
     if (request.type === 'REFRESH_HIGHLIGHTS') {
         const targetTabId = sender.tab?.id || request.tabId;
@@ -223,5 +232,26 @@ async function performHandshake(credentials?: {username: string, password: strin
 
     } catch (err: any) {
         return { success: false, error: err.message };
+    }
+}
+
+// 5. HELPER: Send Realignments
+async function batchRealignUnits(updates: any[]) {
+    try {
+        const storage = await chrome.storage.local.get(['api_token']);
+        const token = storage.api_token;
+        if (!token) return;
+
+        await fetch(`${API_BASE}/api/units/batch_realign`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ updates })
+        });
+        console.log(`[Background] Sent ${updates.length} healing updates.`);
+    } catch (e) {
+        console.error("[Background] Failed to send realignments:", e);
     }
 }
