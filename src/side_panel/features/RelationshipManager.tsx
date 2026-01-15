@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
 import { useSelection } from '@/side_panel/context/SelectionContext';
 import { useApi } from '@/hooks/useApi';
 import { StagedItem } from '@/utils/types';
@@ -243,7 +244,18 @@ export const RelationshipManager = () => {
 
   return (
     <div className="p-4 space-y-6">
-      <h2 className="text-lg font-bold text-slate-800">Knowledge Linker</h2>
+      <div className="flex items-center gap-2 group relative">
+        <h2 className="text-lg font-bold text-slate-800">Knowledge Linker</h2>
+        <QuestionMarkCircleIcon className="w-5 h-5 text-slate-400 cursor-help hover:text-slate-600 transition-colors" />
+
+        {/* Tooltip */}
+        <div className="absolute left-0 top-full mt-2 hidden group-hover:block w-72 p-3 bg-slate-800 text-white text-xs font-normal rounded-md shadow-xl z-20 leading-relaxed">
+          <p className="font-bold mb-1 border-b border-slate-600 pb-1">How to use this page:</p>
+          <p>This tab could be used to link a specific Hidden Word to the commentary or explanations about it. These connections inform bahai.chat as it's answer questions.</p>
+          {/* Tooltip Arrow */}
+          <div className="absolute bottom-full left-6 border-8 border-transparent border-b-slate-800"></div>
+        </div>
+      </div>
       
       {/* SUBJECT CARD */}
       <div className={`p-3 rounded border ${subject ? 'bg-blue-50 border-blue-200' : 'bg-slate-50 border-slate-200 border-dashed'}`}>
