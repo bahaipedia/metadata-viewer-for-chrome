@@ -79,7 +79,7 @@ export const TagInput: React.FC<Props> = ({ tags, onChange, disabled }) => {
   };
 
   return (
-    <div className="relative">
+    <div>
       <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">
         Tags / Topics
       </label>
@@ -101,42 +101,45 @@ export const TagInput: React.FC<Props> = ({ tags, onChange, disabled }) => {
         ))}
       </div>
 
-      {/* Input */}
-      <input
-        type="text"
-        className="w-full p-2 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-        placeholder={disabled ? "Locked" : "Type to search or create..."}
-        value={query}
-        onChange={e => setQuery(e.target.value)}
-        onKeyDown={handleKeyDown}
-        disabled={disabled}
-      />
+      {/* [CHANGED] Wrapped Input + Dropdown in relative container to anchor the pop-up correctly */}
+      <div className="relative">
+          {/* Input */}
+          <input
+            type="text"
+            className="w-full p-2 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+            placeholder={disabled ? "Locked" : "Type to search or create..."}
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={disabled}
+          />
 
-      {/* Dropdown */}
-      {!disabled && query && (
-        <ul className="absolute z-20 w-full bg-white border border-slate-200 rounded-b shadow-xl mt-0.5 max-h-48 overflow-y-auto">
-          {suggestions.map((tag) => (
-            <li 
-              key={tag.id}
-              onClick={() => handleSelect(tag)}
-              className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer text-slate-700 flex items-center"
-            >
-              <UserIcon className="w-4 h-4 text-slate-400 mr-2" />
-              {tag.label}
-            </li>
-          ))}
+          {/* Dropdown (Popping UPWARDS) */}
+          {!disabled && query && (
+            <ul className="absolute z-20 w-full bg-white border border-slate-200 rounded-md shadow-xl mb-1 bottom-full max-h-48 overflow-y-auto">
+              {suggestions.map((tag) => (
+                <li 
+                  key={tag.id}
+                  onClick={() => handleSelect(tag)}
+                  className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer text-slate-700 flex items-center"
+                >
+                  <UserIcon className="w-4 h-4 text-slate-400 mr-2" />
+                  {tag.label}
+                </li>
+              ))}
 
-          {!suggestions.some(s => s.label.toLowerCase() === query.toLowerCase()) && (
-            <li 
-              onClick={() => createTag(query)}
-              className="px-3 py-2 text-sm bg-blue-50 text-blue-700 cursor-pointer hover:bg-blue-100 font-semibold flex items-center border-t border-blue-100"
-            >
-              <PlusIcon className="w-4 h-4 mr-2" />
-              Create "{query}"
-            </li>
+              {!suggestions.some(s => s.label.toLowerCase() === query.toLowerCase()) && (
+                <li 
+                  onClick={() => createTag(query)}
+                  className="px-3 py-2 text-sm bg-blue-50 text-blue-700 cursor-pointer hover:bg-blue-100 font-semibold flex items-center border-t border-blue-100"
+                >
+                  <PlusIcon className="w-4 h-4 mr-2" />
+                  Create "{query}"
+                </li>
+              )}
+            </ul>
           )}
-        </ul>
-      )}
+      </div>
     </div>
   );
 };
