@@ -32,7 +32,7 @@ interface Props {
     onTreeChange: (changes: {id: number, parent_id: number | null}[]) => void;
     onDeleteTag: (tag: DefinedTag, hasChildren: boolean) => void;
     onEditTag: (tag: DefinedTag) => void;
-    onUnitClick: (unit: LogicalUnit) => void;
+    onUnitClick: (unit: LogicalUnit, fromTree?: boolean) => void;
 }
 
 export const TaxonomyExplorer: React.FC<Props> = ({ 
