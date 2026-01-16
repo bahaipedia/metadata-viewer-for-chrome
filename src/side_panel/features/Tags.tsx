@@ -390,7 +390,7 @@ export const Tags = () => {
                         editingUnit?.broken_index ? handleRepair : 
                         (editingTag ? handleRename : (editingUnit ? handleUpdate : handleCreate))
                     }
-                    disabled={isSaving || (editingUnit?.broken_index && !repairSelection)} 
+                    disabled={isSaving || (!!editingUnit?.broken_index && !repairSelection)} 
                     className={`p-1 rounded disabled:opacity-50 ${editingUnit?.broken_index ? 'text-red-600 hover:bg-red-100' : 'text-green-600 hover:bg-green-50'}`} 
                     title={editingUnit?.broken_index ? "Confirm Repair" : "Save"}
                 >
