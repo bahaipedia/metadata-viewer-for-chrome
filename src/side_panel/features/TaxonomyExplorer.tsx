@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useApi } from '@/hooks/useApi';
 import { DefinedTag, LogicalUnit } from '@/utils/types';
 import { 
@@ -230,6 +230,9 @@ const TaxonomyNode = ({
 }: any) => {
     const { get } = useApi();
     const [units, setUnits] = useState<LogicalUnit[]>([]);
+    
+    // [NEW] Ref to scroll to the active snippet
+    const activeUnitRef = useRef<HTMLDivElement>(null);
 
     const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } = useDraggable({
         id: node.id,
@@ -241,11 +244,22 @@ const TaxonomyNode = ({
         disabled: !isEditMode
     });
 
+    // 1. Fetch Units when expanded
     useEffect(() => {
         if (isExpanded && units.length === 0 && !isEditMode) {
              get(`/api/units?tag_id=${node.id}&limit=10`).then(setUnits).catch(() => {});
         }
     }, [isExpanded, refreshKey, isEditMode]);
+
+    // [NEW] 2. Scroll into view when the active unit appears
+    useEffect(() => {
+        if (activeUnitRef.current && highlightUnitId) {
+            // Slight delay ensures the tree expansion animation (if any) has settled
+            setTimeout(() => {
+                activeUnitRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
+        }
+    }, [highlightUnitId, units, isExpanded]);
 
     const style = transform ? {
         transform: CSS.Translate.toString(transform),
@@ -272,7 +286,7 @@ const TaxonomyNode = ({
                 
                 {isEditMode && !node.is_official && (
                     <div {...listeners} {...attributes} className="mr-1 cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600 p-1">
-                        <Bars2Icon className="w-4 h-4" />
+                        <div className="w-4 h-4"><Bars2Icon /></div>
                     </div>
                 )}
 
@@ -331,7 +345,8 @@ const TaxonomyNode = ({
                         return (
                             <div 
                                 key={u.id}
-                                // CHANGED: Added 'flex items-center' to align icon and text
+                                // [NEW] Attach Ref if this is the active unit
+                                ref={isActive ? activeUnitRef : null}
                                 className={`flex items-center ml-0 text-xs py-1 px-1 mb-1 rounded cursor-pointer truncate transition-all duration-500 ${
                                     isActive 
                                     ? 'bg-yellow-100 text-yellow-800 font-bold border border-yellow-300' 
@@ -339,10 +354,7 @@ const TaxonomyNode = ({
                                 }`}
                                 onClick={() => chrome.runtime.sendMessage({ type: 'NAVIGATE_TO_UNIT', unit_id: u.id, ...u })}
                             >
-                                {/* [NEW] Spacer to match the Chevron width (w-4 = 1rem approx, matching the chevron container) */}
                                 <span className="w-4 inline-block flex-shrink-0"></span>
-
-                                {/* Icon & Text */}
                                 <span className="mr-1">📄</span>
                                 <span className="truncate">{u.text_content.substring(0, 30)}...</span>
                             </div>
