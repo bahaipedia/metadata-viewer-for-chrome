@@ -312,7 +312,7 @@ export const Tags = () => {
   };
 
   const isEditorVisible = !!currentSelection || !!editingUnit || !!editingTag;
-  const isRepairView = editingUnit?.broken_index || forceRepairMode;
+  const isRepairView = !!editingUnit?.broken_index || forceRepairMode;
 
   return (
     <div className="flex flex-col h-full bg-slate-50">
