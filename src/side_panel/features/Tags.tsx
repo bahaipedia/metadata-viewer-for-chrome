@@ -6,11 +6,11 @@ import { useApi } from '@/hooks/useApi';
 import { 
     MagnifyingGlassIcon, UserIcon, BuildingLibraryIcon, 
     TrashIcon, PencilSquareIcon, CheckIcon, XMarkIcon,
-    ChevronDownIcon 
+    ChevronDownIcon, ExclamationTriangleIcon, ArrowPathIcon
 } from '@heroicons/react/24/solid';
 import { LogicalUnit, DefinedTag } from '@/utils/types';
 
-// [NEW] Canonical Author List
+// Canonical Author List
 const CANONICAL_AUTHORS = [
     "The Báb",
     "Bahá’u’lláh",
@@ -38,70 +38,93 @@ export const Tags = () => {
   const [revealUnitId, setRevealUnitId] = useState<number | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // [NEW] Author Logic
+  // Repair State
+  const [repairSelection, setRepairSelection] = useState<{text: string, start: number, end: number} | null>(null);
+
+  // Author Logic
   const [author, setAuthor] = useState('Undefined');
-  const [isAutoDetected, setIsAutoDetected] = useState(false); // True if came from Scraper
-  const [showManualAuthorInput, setShowManualAuthorInput] = useState(false); // For "Other" flow
+  const [isAutoDetected, setIsAutoDetected] = useState(false);
+  const [showManualAuthorInput, setShowManualAuthorInput] = useState(false);
 
   // 1. Listen for clicks/selection
   useEffect(() => {
     const listener = (msg: any) => {
-      // CASE A: Existing Unit Clicked
+      // CASE A: Existing Unit Clicked (From Content Script)
       if (msg.type === 'UNIT_CLICKED' && msg.unit) {
-        clearSelection();
-        setEditingTag(null);
-        setEditingUnit(msg.unit);
-        setRevealUnitId(msg.unit.id);
-        
-        // Existing units are "locked" to whatever is in DB, treat as auto-detected for UI simplicity
-        setAuthor(msg.unit.author || 'Undefined');
-        setIsAutoDetected(true); 
-        setShowManualAuthorInput(false);
-
-        get(`/api/units/${msg.unit.id}/tags`).then((tags: Tag[]) => {
-            setSelectedTags(tags); 
-        });
+        handleUnitClick(msg.unit);
       }
 
-      // CASE B: New Text Selected
+      // CASE B: Text Selected
       if (msg.type === 'TEXT_SELECTED') {
-         // Check scraper context
-         const detected = msg.context && msg.context.author && msg.context.author !== 'Undefined';
-         
-         if (detected) {
-             setAuthor(msg.context.author);
-             setIsAutoDetected(true);
-             setShowManualAuthorInput(false);
-         } else {
-             setAuthor('Undefined'); // Reset to default
-             setIsAutoDetected(false);
-             setShowManualAuthorInput(false);
-         }
+          // If in "Repair Mode", capture selection for repair
+          if (editingUnit?.broken_index) {
+             setRepairSelection({
+                 text: msg.text,
+                 start: msg.offsets.start,
+                 end: msg.offsets.end
+             });
+             return;
+          }
+
+          // Normal Creation Flow
+          const detected = msg.context && msg.context.author && msg.context.author !== 'Undefined';
+          if (detected) {
+              setAuthor(msg.context.author);
+              setIsAutoDetected(true);
+              setShowManualAuthorInput(false);
+          } else {
+              setAuthor('Undefined');
+              setIsAutoDetected(false);
+              setShowManualAuthorInput(false);
+          }
       }
     };
     chrome.runtime.onMessage.addListener(listener);
     return () => chrome.runtime.onMessage.removeListener(listener);
-  }, []);
+  }, [editingUnit]); 
 
-  // 2. Handle Create Mode
+  // 2. Handle Create Mode (Reset when new selection made)
   useEffect(() => {
     if (currentSelection) {
       setEditingUnit(null); 
       setEditingTag(null);
       setSelectedTags([]); 
-      // Author reset handled in listener above based on message content
     }
   }, [currentSelection]);
 
+  // Helper
   const triggerRefresh = () => {
       chrome.runtime.sendMessage({ type: 'REFRESH_HIGHLIGHTS' });
       setRefreshKey(prev => prev + 1);
   };
 
+  // Central Handler for Unit Clicks (from Tree or Page)
+  const handleUnitClick = (unit: LogicalUnit) => {
+        clearSelection();
+        setEditingTag(null);
+        setEditingUnit(unit);
+        setRevealUnitId(unit.id);
+        
+        // If not broken, try to scroll
+        if (!unit.broken_index) {
+             chrome.runtime.sendMessage({ type: 'SCROLL_TO_UNIT', unit_id: unit.id });
+        } else {
+             // If broken, reset repair selection state
+             setRepairSelection(null);
+        }
+
+        setAuthor(unit.author || 'Undefined');
+        setIsAutoDetected(true); 
+        setShowManualAuthorInput(false);
+
+        get(`/api/units/${unit.id}/tags`).then((tags: Tag[]) => {
+            setSelectedTags(tags); 
+        });
+  };
+
   const handleCreate = async () => {
     if (!currentSelection) return;
     
-    // Validation: Don't save "Undefined"
     if (author === 'Undefined') {
         alert("Please select an author.");
         return;
@@ -222,13 +245,37 @@ export const Tags = () => {
     }
   };
 
+  // Repair Logic
+  const handleRepair = async () => {
+      if (!editingUnit || !repairSelection) return;
+      setIsSaving(true);
+      try {
+          await put(`/api/units/${editingUnit.id}`, {
+              start_char_index: repairSelection.start,
+              end_char_index: repairSelection.end,
+              text_content: repairSelection.text,
+              broken_index: 0 // Clear broken flag
+          });
+          
+          triggerRefresh();
+          setEditingUnit(null);
+          setRepairSelection(null);
+          alert("Highlight repaired successfully!");
+      } catch (e) {
+          alert("Failed to repair highlight.");
+      } finally {
+          setIsSaving(false);
+      }
+  };
+
   const closeBottomPane = () => {
     clearSelection();
     setEditingUnit(null);
     setEditingTag(null);
     setRevealUnitId(null);
-    setIsAutoDetected(false); // Reset
-    setShowManualAuthorInput(false); // Reset
+    setRepairSelection(null); 
+    setIsAutoDetected(false);
+    setShowManualAuthorInput(false);
   };
 
   const isEditorVisible = !!currentSelection || !!editingUnit || !!editingTag;
@@ -258,7 +305,7 @@ export const Tags = () => {
             View Examples
           </button>
         </div>
-
+        
         <div className="flex items-center gap-2">
             <div className="relative flex-1">
                 <MagnifyingGlassIcon className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
@@ -274,7 +321,7 @@ export const Tags = () => {
             {viewMode === 'mine' && (
                 !isEditMode ? (
                     <button 
-                        onClick={() => setIsEditMode(true)}
+                        onClick={() => setIsEditMode(true)} 
                         className="p-2 text-slate-500 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 border border-slate-200 rounded transition-colors"
                         title="Edit Taxonomy Tree"
                     >
@@ -283,15 +330,15 @@ export const Tags = () => {
                 ) : (
                     <div className="flex gap-1">
                         <button 
-                            onClick={handleSaveTree}
-                            disabled={isSaving}
+                            onClick={handleSaveTree} 
+                            disabled={isSaving} 
                             className="p-2 bg-green-100 text-green-700 hover:bg-green-200 border border-green-300 rounded transition-colors"
                             title="Save Hierarchy Changes"
                         >
                             <CheckIcon className="w-4 h-4" />
                         </button>
                         <button 
-                            onClick={() => { setIsEditMode(false); setRefreshKey(prev => prev + 1); setTreeChanges([]); }}
+                            onClick={() => { setIsEditMode(false); setRefreshKey(prev => prev + 1); setTreeChanges([]); }} 
                             className="p-2 bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-300 rounded transition-colors"
                             title="Cancel Editing"
                         >
@@ -316,37 +363,41 @@ export const Tags = () => {
             onTreeChange={setTreeChanges}
             onDeleteTag={handleTagDeleteRequest}
             onEditTag={setEditingTag}
+            onUnitClick={handleUnitClick} 
         />
       </div>
 
       {/* Editor Pane (Dynamic Content) */}
       {isEditorVisible && (
-        <div className="border-t-2 border-blue-500 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-20 flex flex-col max-h-[50%]">
-           <div className="flex items-center justify-between px-4 py-2 bg-slate-50 border-b border-slate-200">
-              <span className="text-xs font-bold text-slate-500 uppercase">
-                {editingTag ? "Rename Tag" : (editingUnit ? "Edit Highlight" : "New Highlight")}
+        <div className="border-t-2 border-blue-500 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-20 flex flex-col max-h-[60%]">
+           
+           {/* Dynamic Header */}
+           <div className={`flex items-center justify-between px-4 py-2 border-b border-slate-200 ${editingUnit?.broken_index ? 'bg-red-50' : 'bg-slate-50'}`}>
+              <span className={`text-xs font-bold uppercase ${editingUnit?.broken_index ? 'text-red-600 flex items-center gap-1' : 'text-slate-500'}`}>
+                {editingUnit?.broken_index && <ExclamationTriangleIcon className="w-4 h-4" />}
+                {editingUnit?.broken_index ? "Repair Broken Highlight" : (editingTag ? "Rename Tag" : (editingUnit ? "Edit Highlight" : "New Highlight"))}
               </span>
+              
               <div className="flex items-center gap-1">
-                
-                {/* [NEW] Save / Update Button (Green Checkmark) */}
-                {/* Only show for Unit editing/creation, OR if renaming a tag */}
+                {/* Save / Update / Repair Button */}
                 <button 
-                    onClick={editingTag ? handleRename : (editingUnit ? handleUpdate : handleCreate)}
-                    disabled={isSaving}
-                    className="text-green-600 hover:text-green-800 p-1 rounded hover:bg-green-50 disabled:opacity-50" 
-                    title={editingTag ? "Save Name" : (editingUnit ? "Update Tags" : "Save Highlight")}
+                    onClick={
+                        editingUnit?.broken_index ? handleRepair : 
+                        (editingTag ? handleRename : (editingUnit ? handleUpdate : handleCreate))
+                    }
+                    disabled={isSaving || (editingUnit?.broken_index && !repairSelection)} 
+                    className={`p-1 rounded disabled:opacity-50 ${editingUnit?.broken_index ? 'text-red-600 hover:bg-red-100' : 'text-green-600 hover:bg-green-50'}`} 
+                    title={editingUnit?.broken_index ? "Confirm Repair" : "Save"}
                 >
-                    <CheckIcon className="w-5 h-5" />
+                    {editingUnit?.broken_index ? <ArrowPathIcon className="w-5 h-5" /> : <CheckIcon className="w-5 h-5" />}
                 </button>
 
-                {/* Existing: Delete Button (Red Trash) */}
                 {editingUnit && (
                     <button onClick={handleDelete} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50" title="Delete">
                         <TrashIcon className="w-5 h-5" />
                     </button>
                 )}
                 
-                {/* Divider */}
                 <div className="h-4 w-px bg-slate-300 mx-1"></div>
 
                 <button onClick={closeBottomPane} className="text-slate-400 hover:text-slate-600 font-bold text-lg leading-none px-1">
@@ -357,77 +408,72 @@ export const Tags = () => {
 
            <div className="p-4 overflow-y-auto">
               
-              {/* CONDITION: Renaming Tag */}
-              {editingTag ? (
+              {/* 1. Repair Mode UI */}
+              {editingUnit?.broken_index ? (
                   <div className="space-y-4">
-                      <div>
-                          <label className="block text-xs font-bold text-slate-500 mb-1">Tag Name</label>
-                          <input 
-                              type="text" 
-                              className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                              value={editingTag.label}
-                              onChange={(e) => setEditingTag({ ...editingTag, label: e.target.value })}
-                              autoFocus
-                              onKeyDown={(e) => e.key === 'Enter' && handleRename()}
-                          />
+                      <div className="text-xs text-slate-500">
+                          This highlight cannot be found on the page. Please find the text below and select it to repair the link.
                       </div>
-                      {/* Removed old bottom button for Tag Renaming to keep consistency, 
-                          saving is now done via the Checkmark in header or Enter key */}
+
+                      <div>
+                          <label className="block text-xs font-bold text-slate-400 mb-1">ORIGINAL TEXT</label>
+                          <div className="p-2 bg-slate-100 border border-slate-200 rounded text-sm text-slate-600 italic">
+                              "{editingUnit.text_content}"
+                          </div>
+                      </div>
+
+                      <div>
+                          <label className="block text-xs font-bold text-slate-400 mb-1">NEW SELECTION</label>
+                          {repairSelection ? (
+                              <div className="p-2 bg-green-50 border border-green-200 rounded text-sm text-green-800">
+                                  "{repairSelection.text}"
+                              </div>
+                          ) : (
+                              <div className="p-2 border border-dashed border-slate-300 rounded text-sm text-slate-400 text-center py-4">
+                                  Waiting for you to select text on the page...
+                              </div>
+                          )}
+                      </div>
                   </div>
               ) : (
-                  /* CONDITION: Editing Unit (Snippet) */
-                  <>
-                      {/* [NEW] Author Selection Logic */}
+                /* 2. Normal Edit/Create UI */
+                editingTag ? (
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Tag Name</label>
+                            <input 
+                                type="text" 
+                                className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                value={editingTag.label}
+                                onChange={(e) => setEditingTag({ ...editingTag, label: e.target.value })}
+                                autoFocus
+                                onKeyDown={(e) => e.key === 'Enter' && handleRename()}
+                            />
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                      {/* Author Selection */}
                       {!editingUnit && (
                           <div className="mb-4">
                                {isAutoDetected ? (
-                                   // A. Auto-Detected: Minimalist
                                    <div className="mb-4 text-xs font-bold text-slate-500 uppercase tracking-wide">
                                         Author: {author}
                                    </div>
                                ) : (
-                                   // B. Manual Selection
                                    <div>
                                        <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Author</label>
-                                       
                                        {showManualAuthorInput ? (
-                                           // C. Free Text Input
                                            <div className="relative">
-                                               <input 
-                                                   type="text" 
-                                                   className="w-full p-2 pl-8 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                                                   value={author === 'Undefined' ? '' : author}
-                                                   onChange={(e) => setAuthor(e.target.value)}
-                                                   placeholder="Enter Author Name..."
-                                                   autoFocus
-                                               />
+                                               <input type="text" className="w-full p-2 pl-8 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none" value={author === 'Undefined' ? '' : author} onChange={(e) => setAuthor(e.target.value)} placeholder="Enter Author Name..." autoFocus />
                                                <UserIcon className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400" />
-                                               <button 
-                                                    onClick={() => { setShowManualAuthorInput(false); setAuthor('Undefined'); }}
-                                                    className="absolute right-2 top-2 text-xs text-blue-600 hover:underline"
-                                               >
-                                                    Cancel
-                                               </button>
+                                               <button onClick={() => { setShowManualAuthorInput(false); setAuthor('Undefined'); }} className="absolute right-2 top-2 text-xs text-blue-600 hover:underline">Cancel</button>
                                            </div>
                                        ) : (
-                                           // D. Dropdown
                                            <div className="relative">
-                                               <select 
-                                                   className="w-full p-2 pl-8 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none appearance-none bg-white"
-                                                   value={author}
-                                                   onChange={(e) => {
-                                                       if (e.target.value === 'OTHER_MANUAL') {
-                                                           setShowManualAuthorInput(true);
-                                                           setAuthor('');
-                                                       } else {
-                                                           setAuthor(e.target.value);
-                                                       }
-                                                   }}
-                                               >
+                                               <select className="w-full p-2 pl-8 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none appearance-none bg-white" value={author} onChange={(e) => { if (e.target.value === 'OTHER_MANUAL') { setShowManualAuthorInput(true); setAuthor(''); } else { setAuthor(e.target.value); } }}>
                                                    <option value="Undefined" disabled>Select an Author...</option>
-                                                   {CANONICAL_AUTHORS.map(name => (
-                                                       <option key={name} value={name}>{name}</option>
-                                                   ))}
+                                                   {CANONICAL_AUTHORS.map(name => <option key={name} value={name}>{name}</option>)}
                                                    <option value="OTHER_MANUAL">Other...</option>
                                                </select>
                                                <UserIcon className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400" />
@@ -438,9 +484,10 @@ export const Tags = () => {
                                )}
                           </div>
                       )}
-
+                      
                       <TagInput tags={selectedTags} onChange={setSelectedTags} />
-                  </>
+                    </>
+                )
               )}
            </div>
         </div>
