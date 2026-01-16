@@ -114,7 +114,7 @@ const verifyAndHealUnits = async () => {
     const normalize = (str: string) => str.replace(/\s+/g, ' ').trim();
 
     cachedUnits.forEach(unit => {
-        // [CHANGED] Explicit boolean check to avoid issues with 0 vs undefined
+        // Explicit boolean check
         const isMarkedBroken = !!(unit as any).broken_index;
 
         // If explicitly broken in DB, trust it and skip verification
@@ -129,14 +129,26 @@ const verifyAndHealUnits = async () => {
             const range = findRangeFromOffsets(unit.start_char_index, unit.end_char_index);
             if (range) {
                 const rangeText = range.toString();
+                // [DEBUG] Log mismatch to see why Healer is rejecting it
+                if (unit.id === 340) {
+                     console.log(`[Verify 340] Expected: "${unit.text_content.substring(0, 20)}..."`);
+                     console.log(`[Verify 340] Found at offsets: "${rangeText.substring(0, 20)}..."`);
+                     console.log(`[Verify 340] Match?`, rangeText === unit.text_content || normalize(rangeText) === normalize(unit.text_content));
+                }
+
                 if (rangeText === unit.text_content || normalize(rangeText) === normalize(unit.text_content)) {
                     isHealthy = true;
                 }
+            } else {
+                if (unit.id === 340) console.warn("[Verify 340] Range NOT found for offsets", unit.start_char_index, unit.end_char_index);
             }
-        } catch (e) { isHealthy = false; }
+        } catch (e) { 
+            if (unit.id === 340) console.error("[Verify 340] Error finding range", e);
+            isHealthy = false; 
+        }
 
         if (isHealthy) {
-            // [CHANGED] If healthy, explicitly clear the broken flag in memory
+            // If healthy, explicitly clear the broken flag in memory
             if ((unit as any).broken_index) {
                 (unit as any).broken_index = 0;
             }
@@ -161,7 +173,7 @@ const verifyAndHealUnits = async () => {
             unit.start_char_index = result.start;
             unit.end_char_index = result.end;
             unit.text_content = result.newText;
-            (unit as any).broken_index = 0; // Ensure clean state
+            (unit as any).broken_index = 0; 
 
             updatesToSync.push({
                 id: unit.id,
@@ -172,13 +184,19 @@ const verifyAndHealUnits = async () => {
             });
         } else {
             console.warn(`[Healer] Failed Unit ${unit.id} after all attempts.`);
+            
+            // [DEBUG] Log why Healer gave up
+            if (unit.id === 340) {
+                console.log("[Healer 340] Anchor search failed inside text length:", pageText.length);
+            }
+
             (unit as any).broken_index = 1;
             updatesToSync.push({ id: unit.id, broken_index: 1 });
             brokenUnits.push(unit); 
         }
     });
 
-    // [CHANGED] Update footer and Render highlights based on new state
+    // Update footer and Render highlights based on new state
     renderBrokenLinksFooter(brokenUnits);
     renderHighlights();
 
