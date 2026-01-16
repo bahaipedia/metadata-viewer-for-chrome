@@ -608,13 +608,48 @@ export const Tags = () => {
                            </p>
                        </div>
                    </div>
-               ) : (
-                   /* ... Create Highlight UI (Author/TagInput) ... */
-                   <></>
-               )}
-            </div>
+               </div>
+                ) : (
+                    <>
+                      {/* Author Selection */}
+                      {!editingUnit && (
+                          <div className="mb-4">
+                               {isAutoDetected ? (
+                                   <div className="mb-4 text-xs font-bold text-slate-500 uppercase tracking-wide">
+                                        Author: {author}
+                                   </div>
+                               ) : (
+                                   <div>
+                                       <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Author</label>
+                                       {showManualAuthorInput ? (
+                                           <div className="relative">
+                                               <input type="text" className="w-full p-2 pl-8 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none" value={author === 'Undefined' ? '' : author} onChange={(e) => setAuthor(e.target.value)} placeholder="Enter Author Name..." autoFocus />
+                                               <UserIcon className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400" />
+                                               <button onClick={() => { setShowManualAuthorInput(false); setAuthor('Undefined'); }} className="absolute right-2 top-2 text-xs text-blue-600 hover:underline">Cancel</button>
+                                           </div>
+                                       ) : (
+                                           <div className="relative">
+                                               <select className="w-full p-2 pl-8 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none appearance-none bg-white" value={author} onChange={(e) => { if (e.target.value === 'OTHER_MANUAL') { setShowManualAuthorInput(true); setAuthor(''); } else { setAuthor(e.target.value); } }}>
+                                                   <option value="Undefined" disabled>Select an Author...</option>
+                                                   {CANONICAL_AUTHORS.map(name => <option key={name} value={name}>{name}</option>)}
+                                                   <option value="OTHER_MANUAL">Other...</option>
+                                               </select>
+                                               <UserIcon className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400" />
+                                               <ChevronDownIcon className="absolute right-2.5 top-3 w-4 h-4 text-slate-400 pointer-events-none" />
+                                           </div>
+                                       )}
+                                   </div>
+                               )}
+                          </div>
+                      )}
+                      
+                      <TagInput tags={selectedTags} onChange={setSelectedTags} />
+                    </>
+                )
+              )}
+           </div>
         </div>
-       )}
+      )}
     </div>
   );
 };
