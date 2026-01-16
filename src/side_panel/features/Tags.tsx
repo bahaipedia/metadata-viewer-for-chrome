@@ -99,26 +99,32 @@ export const Tags = () => {
   };
 
   // Central Handler for Unit Clicks (from Tree or Page)
-  // [CHANGED] Added 'fromTree' parameter
   const handleUnitClick = (unit: LogicalUnit, fromTree = false) => {
         clearSelection();
         setEditingTag(null);
-        setEditingUnit(unit);
         
-        // [CHANGED] Only auto-scroll the SIDEBAR if the click came from the PAGE.
-        // If we clicked the tree, we are already looking at the correct item.
-        if (!fromTree) {
-            setRevealUnitId(unit.id || null);
-        }
-        
-        // [CHANGED] Use NAVIGATE_TO_UNIT instead of SCROLL_TO_UNIT.
-        // This ensures cross-page navigation works if the snippet is on a different URL.
-        if (!unit.broken_index && unit.id) {
-             chrome.runtime.sendMessage({ type: 'NAVIGATE_TO_UNIT', unit_id: unit.id, ...unit });
-        } else {
+        // CASE 1: Broken Unit (From Tree or Page) -> Always Open Repair Editor
+        if (unit.broken_index) {
+             setEditingUnit(unit);
              setRepairSelection(null);
+             // No navigation possible
+             return; 
         }
 
+        // CASE 2: Healthy Unit Clicked from TREE -> Navigate Only (Do NOT open editor)
+        if (fromTree) {
+             setEditingUnit(null); // Ensure editor is closed
+             if (unit.id) {
+                 chrome.runtime.sendMessage({ type: 'NAVIGATE_TO_UNIT', unit_id: unit.id, ...unit });
+             }
+             return;
+        }
+
+        // CASE 3: Healthy Unit Clicked from PAGE -> Open Editor & Reveal in Tree
+        setEditingUnit(unit);
+        setRevealUnitId(unit.id || null);
+
+        // Populate Form Data for Editor
         setAuthor(unit.author || 'Undefined');
         setIsAutoDetected(true); 
         setShowManualAuthorInput(false);
