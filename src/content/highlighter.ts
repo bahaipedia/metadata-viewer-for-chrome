@@ -59,8 +59,8 @@ export const initHighlighter = async () => {
                 ...cachedUnits.filter(u => !incomingIds.has(u.id)), 
                 ...request.units
             ];
-            // Note: We assume newly created units are correct, no healing needed immediately
-            renderHighlights();
+
+            verifyAndHealUnits(); 
         }
 
         if (request.type === 'TRIGGER_DATA_RELOAD') {
