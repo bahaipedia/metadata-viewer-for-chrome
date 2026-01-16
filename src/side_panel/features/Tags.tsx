@@ -99,14 +99,16 @@ export const Tags = () => {
   };
 
   // Central Handler for Unit Clicks (from Tree or Page)
-  const handleUnitClick = (unit: LogicalUnit) => {
+    const handleUnitClick = (unit: LogicalUnit) => {
         clearSelection();
         setEditingTag(null);
         setEditingUnit(unit);
-        setRevealUnitId(unit.id);
         
-        // If not broken, try to scroll
-        if (!unit.broken_index) {
+        // [FIX] Handle potential undefined ID by defaulting to null
+        setRevealUnitId(unit.id || null);
+        
+        // If not broken, try to scroll. Ensure ID exists before scrolling.
+        if (!unit.broken_index && unit.id) {
              chrome.runtime.sendMessage({ type: 'SCROLL_TO_UNIT', unit_id: unit.id });
         } else {
              // If broken, reset repair selection state
@@ -117,9 +119,12 @@ export const Tags = () => {
         setIsAutoDetected(true); 
         setShowManualAuthorInput(false);
 
-        get(`/api/units/${unit.id}/tags`).then((tags: Tag[]) => {
-            setSelectedTags(tags); 
-        });
+        // [FIX] Only fetch tags if ID exists
+        if (unit.id) {
+            get(`/api/units/${unit.id}/tags`).then((tags: Tag[]) => {
+                setSelectedTags(tags); 
+            });
+        }
   };
 
   const handleCreate = async () => {
