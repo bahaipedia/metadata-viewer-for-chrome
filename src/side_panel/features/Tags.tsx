@@ -40,6 +40,7 @@ export const Tags = () => {
 
   // Repair State
   const [repairSelection, setRepairSelection] = useState<{text: string, start: number, end: number} | null>(null);
+  const [forceRepairMode, setForceRepairMode] = useState(false);
 
   // Author Logic
   const [author, setAuthor] = useState('Undefined');
@@ -49,15 +50,23 @@ export const Tags = () => {
   // 1. Listen for clicks/selection
   useEffect(() => {
     const listener = (msg: any) => {
-      // CASE A: Existing Unit Clicked (From Content Script)
+      // CASE A: Standard Click -> Tag Editor
       if (msg.type === 'UNIT_CLICKED' && msg.unit) {
+        setForceRepairMode(false); // Reset
         handleUnitClick(msg.unit);
       }
 
-      // CASE B: Text Selected
+      // [NEW] CASE B: Double Click -> Force Repair Mode
+      if (msg.type === 'UNIT_DBL_CLICKED' && msg.unit) {
+          handleUnitClick(msg.unit);
+          setForceRepairMode(true); // Override to show Repair UI
+          setRepairSelection(null); // Wait for new selection
+      }
+
+      // CASE C: Text Selected
       if (msg.type === 'TEXT_SELECTED') {
-          // If in "Repair Mode", capture selection for repair
-          if (editingUnit?.broken_index) {
+          // Check if we are in Repair Mode (Broken OR Forced)
+          if (editingUnit?.broken_index || forceRepairMode) {
              setRepairSelection({
                  text: msg.text,
                  start: msg.offsets.start,
@@ -81,7 +90,7 @@ export const Tags = () => {
     };
     chrome.runtime.onMessage.addListener(listener);
     return () => chrome.runtime.onMessage.removeListener(listener);
-  }, [editingUnit]); 
+  }, [editingUnit, forceRepairMode]);
 
   // 2. Handle Create Mode (Reset when new selection made)
   useEffect(() => {
@@ -268,15 +277,16 @@ export const Tags = () => {
               start_char_index: repairSelection.start,
               end_char_index: repairSelection.end,
               text_content: repairSelection.text,
-              broken_index: 0 // Clear broken flag
+              broken_index: 0 
           });
           
           triggerRefresh();
           setEditingUnit(null);
           setRepairSelection(null);
-          alert("Highlight repaired successfully!");
+          setForceRepairMode(false); // Turn off mode
+          alert("Highlight updated successfully!");
       } catch (e) {
-          alert("Failed to repair highlight.");
+          alert("Failed to update highlight.");
       } finally {
           setIsSaving(false);
       }
@@ -288,11 +298,13 @@ export const Tags = () => {
     setEditingTag(null);
     setRevealUnitId(null);
     setRepairSelection(null); 
+    setForceRepairMode(false);
     setIsAutoDetected(false);
     setShowManualAuthorInput(false);
   };
 
   const isEditorVisible = !!currentSelection || !!editingUnit || !!editingTag;
+  const isRepairView = editingUnit?.broken_index || forceRepairMode;
 
   return (
     <div className="flex flex-col h-full bg-slate-50">
