@@ -89,7 +89,6 @@ export const initHighlighter = async () => {
 };
 
 // Helper: Extract ONLY visible text (ignores <script>, <style>, etc)
-// This ensures our "Search" coordinates match what the user actually sees.
 const getContentText = (): string => {
     const container = document.querySelector('#mw-content-text');
     if (!container) return "";
@@ -104,6 +103,8 @@ const getContentText = (): string => {
 
 const verifyAndHealUnits = async () => {
     const updatesToSync: any[] = [];
+    const brokenUnits: LogicalUnit[] = []; // [NEW] Track failures locally
+    
     let lazyPageText: string | null = null;
     const getPageText = () => {
         if (!lazyPageText) lazyPageText = getContentText();
@@ -113,7 +114,11 @@ const verifyAndHealUnits = async () => {
     const normalize = (str: string) => str.replace(/\s+/g, ' ').trim();
 
     cachedUnits.forEach(unit => {
-        if ((unit as any).broken_index) return;
+        // If already marked broken in DB, add to list and skip check
+        if ((unit as any).broken_index) {
+             brokenUnits.push(unit);
+             return;
+        }
 
         // 1. VERIFY
         let isHealthy = false;
@@ -131,9 +136,13 @@ const verifyAndHealUnits = async () => {
 
         // 2. HEAL
         const pageText = getPageText();
-        if (!pageText) return;
+        if (!pageText) {
+             // If we can't get page text, we can't heal, consider broken for this session
+             brokenUnits.push(unit);
+             return;
+        }
 
-        // [NEW] Retry Loop for Anchors
+        // Retry Loop for Anchors
         let result = null;
         for (const size of ANCHOR_RETRY_SIZES) {
              result = performAnchorSearch(unit, pageText, size);
@@ -156,8 +165,12 @@ const verifyAndHealUnits = async () => {
             console.warn(`[Healer] Failed Unit ${unit.id} after all attempts.`);
             (unit as any).broken_index = 1;
             updatesToSync.push({ id: unit.id, broken_index: 1 });
+            brokenUnits.push(unit); // [NEW] Add to broken list
         }
     });
+
+    // [NEW] Render the Footer Alert
+    renderBrokenLinksFooter(brokenUnits);
 
     if (updatesToSync.length > 0) {
         chrome.runtime.sendMessage({
@@ -165,6 +178,90 @@ const verifyAndHealUnits = async () => {
             updates: updatesToSync
         });
     }
+};
+
+// [NEW] Footer Component Injection
+const renderBrokenLinksFooter = (brokenUnits: LogicalUnit[]) => {
+    // 1. Cleanup existing
+    const existing = document.getElementById('rag-broken-footer');
+    if (existing) existing.remove();
+
+    if (brokenUnits.length === 0) {
+        document.body.style.paddingBottom = ''; // Reset padding
+        return;
+    }
+
+    // 2. Create Container
+    const container = document.createElement('div');
+    container.id = 'rag-broken-footer';
+    container.style.cssText = `
+        position: fixed; bottom: 0; left: 0; right: 0;
+        background: #fff1f2; border-top: 3px solid #e11d48;
+        padding: 12px 20px; z-index: 2147483647; font-family: sans-serif;
+        box-shadow: 0 -4px 15px rgba(0,0,0,0.1);
+        display: flex; gap: 15px; align-items: center; 
+        flex-wrap: wrap;
+    `;
+
+    // 3. Label
+    const label = document.createElement('div');
+    label.style.cssText = 'color: #be123c; font-weight: bold; font-size: 14px; display: flex; align-items: center; gap: 8px;';
+    label.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path fill-rule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clip-rule="evenodd" />
+        </svg>
+        ${brokenUnits.length} Broken Link(s):
+    `;
+    container.appendChild(label);
+
+    // 4. Buttons for each unit
+    brokenUnits.forEach(unit => {
+        const btn = document.createElement('button');
+        btn.textContent = `Jump to #${unit.id}`;
+        btn.title = `Original text: "${unit.text_content.substring(0, 100)}..."`;
+        btn.style.cssText = `
+            background: #fff; border: 1px solid #e11d48; color: #e11d48;
+            padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;
+            font-weight: 600; transition: all 0.2s; white-space: nowrap;
+        `;
+        
+        btn.addEventListener('mouseenter', () => {
+            btn.style.background = '#e11d48';
+            btn.style.color = '#fff';
+        });
+        btn.addEventListener('mouseleave', () => {
+            btn.style.background = '#fff';
+            btn.style.color = '#e11d48';
+        });
+
+        btn.onclick = () => {
+            // A. Open Sidebar if closed (optional, requires background support)
+            // chrome.runtime.sendMessage({ type: 'OPEN_SIDE_PANEL' }); 
+
+            // B. Send Click Event (Tags.tsx will catch this -> Expand Tree -> Reveal)
+            chrome.runtime.sendMessage({ type: 'UNIT_CLICKED', unit });
+        };
+
+        container.appendChild(btn);
+    });
+
+    // 5. Close Button
+    const closeBtn = document.createElement('button');
+    closeBtn.innerHTML = '&times;';
+    closeBtn.title = "Dismiss";
+    closeBtn.style.cssText = `
+        margin-left: auto; background: none; border: none; 
+        font-size: 24px; color: #881337; cursor: pointer; line-height: 1;
+    `;
+    closeBtn.onclick = () => {
+        container.remove();
+        document.body.style.paddingBottom = '';
+    };
+    container.appendChild(closeBtn);
+
+    // 6. Append
+    document.body.appendChild(container);
+    document.body.style.paddingBottom = '70px'; // Prevent content overlap
 };
 
 const performAnchorSearch = (unit: LogicalUnit, pageText: string, anchorSize: number) => {
@@ -247,7 +344,7 @@ const renderHighlights = () => {
 
     // 2. Filter Units based on Mode AND Integrity
     const unitsToRender = cachedUnits.filter(unit => {
-        // [NEW] Never render broken units
+        // Never render broken units
         if ((unit as any).broken_index) return false;
 
         // Mode Logic
@@ -294,10 +391,9 @@ const attemptScroll = (attempts = 10) => {
         pendingScrollId = null; // Clear queue
     } else if (attempts > 0) {
         // NOT FOUND YET: Retry in 250ms
-        // IMPORTANT: No console.error here. We expect this to fail a few times.
         setTimeout(() => attemptScroll(attempts - 1), 250);
     } else {
-        // ONLY log if we have run out of attempts (e.g. after ~2.5 seconds)
+        // ONLY log if we have run out of attempts
         console.warn(`Unit ${pendingScrollId} not found in DOM after retries.`);
         pendingScrollId = null;
     }
@@ -308,7 +404,6 @@ const highlightUnit = (unit: LogicalUnit) => {
         const range = findRangeFromOffsets(unit.start_char_index, unit.end_char_index);
         
         if (!range) {
-            // console.warn(`Could not map unit ${unit.id} to DOM.`);
             return;
         }
         safeHighlightRange(range, unit);
