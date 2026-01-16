@@ -99,19 +99,23 @@ export const Tags = () => {
   };
 
   // Central Handler for Unit Clicks (from Tree or Page)
-    const handleUnitClick = (unit: LogicalUnit) => {
+  // [CHANGED] Added 'fromTree' parameter
+  const handleUnitClick = (unit: LogicalUnit, fromTree = false) => {
         clearSelection();
         setEditingTag(null);
         setEditingUnit(unit);
         
-        // [FIX] Handle potential undefined ID by defaulting to null
-        setRevealUnitId(unit.id || null);
+        // [CHANGED] Only auto-scroll the SIDEBAR if the click came from the PAGE.
+        // If we clicked the tree, we are already looking at the correct item.
+        if (!fromTree) {
+            setRevealUnitId(unit.id || null);
+        }
         
-        // If not broken, try to scroll. Ensure ID exists before scrolling.
+        // [CHANGED] Use NAVIGATE_TO_UNIT instead of SCROLL_TO_UNIT.
+        // This ensures cross-page navigation works if the snippet is on a different URL.
         if (!unit.broken_index && unit.id) {
-             chrome.runtime.sendMessage({ type: 'SCROLL_TO_UNIT', unit_id: unit.id });
+             chrome.runtime.sendMessage({ type: 'NAVIGATE_TO_UNIT', unit_id: unit.id, ...unit });
         } else {
-             // If broken, reset repair selection state
              setRepairSelection(null);
         }
 
@@ -119,7 +123,6 @@ export const Tags = () => {
         setIsAutoDetected(true); 
         setShowManualAuthorInput(false);
 
-        // [FIX] Only fetch tags if ID exists
         if (unit.id) {
             get(`/api/units/${unit.id}/tags`).then((tags: Tag[]) => {
                 setSelectedTags(tags); 
