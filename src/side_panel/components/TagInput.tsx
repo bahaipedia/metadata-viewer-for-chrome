@@ -1,5 +1,5 @@
 import React, { useState, KeyboardEvent, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom'; // [NEW] Needed to escape the scroll container
+import { createPortal } from 'react-dom'; 
 import { useApi } from '@/hooks/useApi';
 import { UserIcon, PlusIcon, XMarkIcon } from '@heroicons/react/24/solid';
 
@@ -19,7 +19,7 @@ export const TagInput: React.FC<Props> = ({ tags, onChange, disabled }) => {
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<Tag[]>([]);
   
-  // [NEW] Ref and State for positioning the portal
+  // Ref and State for positioning the portal
   const inputRef = useRef<HTMLInputElement>(null);
   const [dropdownPos, setDropdownPos] = useState({ bottom: 0, left: 0, width: 0 });
 
@@ -40,7 +40,7 @@ export const TagInput: React.FC<Props> = ({ tags, onChange, disabled }) => {
     return () => clearTimeout(timer);
   }, [query, disabled]);
 
-  // [NEW] Update dropdown position whenever query changes (menu appears)
+  // Update dropdown position whenever query changes (menu appears)
   useEffect(() => {
     if (query && inputRef.current) {
         const rect = inputRef.current.getBoundingClientRect();
@@ -91,10 +91,11 @@ export const TagInput: React.FC<Props> = ({ tags, onChange, disabled }) => {
     }
   };
 
-  // [NEW] Render the dropdown contents (for Portal)
+  // Render the dropdown contents (for Portal)
   const dropdownContent = (
     <ul 
-        className="fixed z-[9999] bg-white border border-slate-200 rounded-md shadow-xl max-h-48 overflow-y-auto"
+        // [CHANGED] Increased max-h-48 to max-h-[60vh] to allow much larger lists
+        className="fixed z-[9999] bg-white border border-slate-200 rounded-md shadow-xl max-h-[60vh] overflow-y-auto"
         style={{
             left: dropdownPos.left,
             bottom: dropdownPos.bottom,
@@ -150,7 +151,7 @@ export const TagInput: React.FC<Props> = ({ tags, onChange, disabled }) => {
       <div className="relative">
           {/* Input */}
           <input
-            ref={inputRef} // [NEW] Attach ref here
+            ref={inputRef} 
             type="text"
             className="w-full p-2 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
             placeholder={disabled ? "Locked" : "Type to search or create..."}
@@ -160,7 +161,7 @@ export const TagInput: React.FC<Props> = ({ tags, onChange, disabled }) => {
             disabled={disabled}
           />
 
-          {/* [NEW] Render via Portal to Body */}
+          {/* Render via Portal to Body */}
           {!disabled && query && createPortal(dropdownContent, document.body)}
       </div>
     </div>
