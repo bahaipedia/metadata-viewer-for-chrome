@@ -69,14 +69,7 @@ export const Tags = () => {
         handleUnitClickRef.current(msg.unit);
       }
 
-      // CASE B: Double Click -> Force Repair Mode
-      if (msg.type === 'UNIT_DBL_CLICKED' && msg.unit) {
-          handleUnitClickRef.current(msg.unit);
-          setForceRepairMode(true); 
-          setRepairSelection(null); 
-      }
-
-      // CASE C: Text Selected
+      // CASE Text Selected
       if (msg.type === 'TEXT_SELECTED') {
           // [CHANGED] Check Refs instead of state variables
           const isRepairing = editingUnitRef.current?.broken_index || forceRepairModeRef.current;
@@ -423,15 +416,27 @@ export const Tags = () => {
                 {/* Save / Update / Repair Button */}
                 <button 
                     onClick={
-                        editingUnit?.broken_index ? handleRepair : 
+                        isRepairView ? handleRepair : 
                         (editingTag ? handleRename : (editingUnit ? handleUpdate : handleCreate))
                     }
-                    disabled={isSaving || (!!editingUnit?.broken_index && !repairSelection)} 
-                    className={`p-1 rounded disabled:opacity-50 ${editingUnit?.broken_index ? 'text-red-600 hover:bg-red-100' : 'text-green-600 hover:bg-green-50'}`} 
-                    title={editingUnit?.broken_index ? "Confirm Repair" : "Save"}
+                    disabled={isSaving || (isRepairView && !repairSelection)} 
+                    className={`p-1 rounded disabled:opacity-50 ${isRepairView ? 'text-red-600 hover:bg-red-100' : 'text-green-600 hover:bg-green-50'}`} 
+                    title={isRepairView ? "Confirm Repair" : "Save"}
                 >
-                    {editingUnit?.broken_index ? <ArrowPathIcon className="w-5 h-5" /> : <CheckIcon className="w-5 h-5" />}
+                    {isRepairView ? <ArrowPathIcon className="w-5 h-5" /> : <CheckIcon className="w-5 h-5" />}
                 </button>
+
+                {/* [NEW] Manual Edit / Re-Align Button */}
+                {/* Only show if we have a unit, it's NOT broken (broken ones auto-show repair), and we aren't already editing it */}
+                {editingUnit && !editingUnit.broken_index && !isRepairView && (
+                    <button 
+                        onClick={() => { setForceRepairMode(true); setRepairSelection(null); }}
+                        className="text-blue-500 hover:text-blue-700 p-1 rounded hover:bg-blue-50"
+                        title="Edit Highlight Text (Re-align)"
+                    >
+                        <PencilSquareIcon className="w-5 h-5" />
+                    </button>
+                )}
 
                 {editingUnit && (
                     <button onClick={handleDelete} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50" title="Delete">
