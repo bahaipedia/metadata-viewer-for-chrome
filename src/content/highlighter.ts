@@ -108,7 +108,7 @@ const setupLibObserver = () => {
     observer.observe(target, { childList: true, subtree: true });
 };
 
-// [NEW] Lib Strategy: Scanner
+// Lib Strategy: Scanner
 const scanAndFetchLibIds = async () => {
     // 1. Find all potential IDs in the DOM
     const anchors = document.querySelectorAll('.brl-location[id]');
@@ -129,28 +129,7 @@ const scanAndFetchLibIds = async () => {
 
     console.log(`[Highlighter] Found ${newIds.length} new fragments. Fetching units...`);
 
-    // 2. Batch Fetch
-    // NOTE: You will need to handle 'FETCH_BATCH_DATA' in your background script
-    // OR loop through FETCH_PAGE_DATA if backend update isn't possible right now.
-    // Assuming backend can handle a list or we loop:
-    
-    // OPTION A: Loop (No backend changes needed immediately, but chatty)
-    /*
-    for (const id of newIds) {
-        chrome.runtime.sendMessage({
-            type: 'FETCH_PAGE_DATA',
-            source_code: 'lib',
-            source_page_id: id
-        }).then(response => {
-            if (response && response.units && response.units.length > 0) {
-                cachedUnits = [...cachedUnits, ...response.units];
-                renderHighlights();
-            }
-        });
-    }
-    */
-
-    // OPTION B: Batch (Recommended - requires Backend support)
+    // Batch (Recommended - requires Backend support)
     const response = await chrome.runtime.sendMessage({
         type: 'FETCH_BATCH_DATA',
         source_code: 'lib',
