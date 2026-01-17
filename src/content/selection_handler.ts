@@ -27,7 +27,7 @@ const handleSelection = () => {
             text: selectedText,
             context: context,
             offsets: { start: 0, end: 0 },
-            connected_anchors: [] // New Field
+            connected_anchors: [] 
         };
 
         // ---------------------------------------------------------
@@ -46,17 +46,18 @@ const handleSelection = () => {
             const endAnchorData = findUpstreamAnchor(range.endContainer);
             
             // 3. Find INTERMEDIATE Anchors (if start != end)
-            // We scan the range for any other ID anchors the user dragged across
+            // We scan the range to capture any IDs we crossed over.
             const intermediateIds: number[] = [];
             
-            if (startAnchorData.id !== endAnchorData?.id) {
+            if (endAnchorData && startAnchorData.id !== endAnchorData.id) {
+                const commonAncestor = range.commonAncestorContainer;
                 const walker = document.createTreeWalker(
-                    range.commonAncestorContainer,
+                    commonAncestor.nodeType === Node.ELEMENT_NODE ? commonAncestor : commonAncestor.parentNode!,
                     NodeFilter.SHOW_ELEMENT,
                     { acceptNode: (node) => {
-                        // Check if node is an anchor, has ID, AND is inside range
+                        // Must be a valid ID anchor AND physically inside the selection range
                         if (isValidAnchor(node) && range.intersectsNode(node)) {
-                            // Filter out the start anchor itself if caught
+                            // Don't include the start anchor in the "connected" list
                             if ((node as Element).id !== String(startAnchorData.id)) {
                                 return NodeFilter.FILTER_ACCEPT;
                             }
@@ -67,9 +68,14 @@ const handleSelection = () => {
 
                 while (walker.nextNode()) {
                     const id = parseInt((walker.currentNode as Element).id);
-                    if (!isNaN(id) && !intermediateIds.includes(id)) {
+                    if (!isNaN(id)) {
                         intermediateIds.push(id);
                     }
+                }
+                
+                // Safety: Ensure the End Anchor is included if it wasn't picked up by the walker
+                if (!intermediateIds.includes(endAnchorData.id)) {
+                    intermediateIds.push(endAnchorData.id);
                 }
             }
 
@@ -77,17 +83,16 @@ const handleSelection = () => {
             // Start is relative to Start Anchor
             const startOffset = calculateRelativeOffset(startAnchorData.node, range.startContainer, range.startOffset);
             
-            // End is relative to End Anchor (or Start Anchor if single paragraph)
+            // End is relative to End Anchor (if multi-paragraph) OR Start Anchor (if single)
             const targetEndAnchor = endAnchorData ? endAnchorData.node : startAnchorData.node;
             const endOffset = calculateRelativeOffset(targetEndAnchor, range.endContainer, range.endOffset);
 
             // 5. Construct Payload
-            context.source_page_id = startAnchorData.id; // Primary ID
+            context.source_page_id = startAnchorData.id; 
             payload.offsets = { start: startOffset, end: endOffset };
-            payload.connected_anchors = intermediateIds; // [Middle... End]
+            payload.connected_anchors = intermediateIds; 
             
-            // Debug Log
-            console.log(`Selection: Anchor ${startAnchorData.id} -> ${endAnchorData?.id || startAnchorData.id}`, payload);
+            console.log(`Selection: Anchor ${startAnchorData.id} -> ${endAnchorData?.id} (Connected: ${intermediateIds.length})`, payload);
 
         } else {
             // ---------------------------------------------------------
@@ -114,30 +119,40 @@ const isValidAnchor = (node: Node): boolean => {
            !!node.id;
 };
 
-const findUpstreamAnchor = (startNode: Node | null): { id: number, node: Node } | null => {
-    if (!startNode) return null;
-    const docContent = document.querySelector('.library-document-content');
-    if (!docContent) return null;
+// [CHANGED] Robust Traversal to find the "Header" anchor for any given node
+const findUpstreamAnchor = (node: Node | null): { id: number, node: Node } | null => {
+    let curr = node;
 
-    const walker = document.createTreeWalker(
-        docContent, 
-        NodeFilter.SHOW_ELEMENT, 
-        { acceptNode: (node) => {
-            if (isValidAnchor(node)) return NodeFilter.FILTER_ACCEPT;
-            return NodeFilter.FILTER_SKIP;
-        }}
-    );
+    // Traverse DOM upwards/backwards
+    while (curr) {
+        // 1. Check if 'curr' is the anchor
+        if (isValidAnchor(curr)) {
+            return { id: parseInt((curr as Element).id), node: curr };
+        }
 
-    walker.currentNode = startNode;
-    
-    // If the startNode itself is an anchor (rare but possible), use it
-    if (isValidAnchor(startNode)) {
-        return { id: parseInt((startNode as Element).id), node: startNode };
-    }
+        // 2. Check Previous Siblings (The anchor is usually a sibling of the text node)
+        let sib = curr.previousSibling;
+        while (sib) {
+            if (isValidAnchor(sib)) {
+                return { id: parseInt((sib as Element).id), node: sib };
+            }
+            // If sibling is a wrapper (like .brl-head), look inside it
+            if (sib.nodeType === Node.ELEMENT_NODE && (sib as Element).querySelector) {
+                const childAnchor = (sib as Element).querySelector('.brl-location[id]');
+                if (childAnchor) {
+                     return { id: parseInt(childAnchor.id), node: childAnchor };
+                }
+            }
+            sib = sib.previousSibling;
+        }
 
-    const anchor = walker.previousNode();
-    if (anchor) {
-        return { id: parseInt((anchor as Element).id), node: anchor };
+        // 3. Move Up
+        curr = curr.parentNode;
+        
+        // Boundary Check: Don't go outside the content area
+        if (curr && (curr as Element).classList?.contains('library-document-content')) {
+            break;
+        }
     }
     return null;
 };
