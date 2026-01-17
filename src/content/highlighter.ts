@@ -124,6 +124,13 @@ const normalize = (str: string) => {
 };
 
 const verifyAndHealUnits = async () => {
+
+    // SKIP Healer for Bahai.org ('lib').
+    if (CURRENT_SITE.code === 'lib') {
+        console.log("[Healer] Skipped for 'lib' source (Relational Offsets).");
+        return;
+    }
+    
     const updatesToSync: any[] = [];
     const brokenUnits: LogicalUnit[] = []; 
     
