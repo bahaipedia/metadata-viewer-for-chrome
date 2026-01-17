@@ -527,7 +527,7 @@ export const Tags = () => {
                       {editingUnit && (
                           <div className="opacity-75">
                               <label className="block text-[10px] font-bold text-slate-400 mb-0.5 uppercase">Original Text</label>
-                              <div className="text-xs text-slate-500 italic border-l-2 border-slate-200 pl-2 line-clamp-3">
+                              <div className="text-xs text-slate-600 bg-slate-100 p-2 rounded border border-slate-200 max-h-48 overflow-y-auto whitespace-pre-wrap font-mono leading-relaxed">
                                   "{editingUnit.text_content}"
                               </div>
                           </div>
