@@ -2,7 +2,9 @@
  * Calculates the absolute start/end character indices of a DOM Range
  * relative to the main article container (#mw-content-text).
  */
-export const calculateOffsets = (range: Range, containerSelector: string = '#mw-content-text') => {
+import { CURRENT_SITE } from './site_config';
+
+export const calculateOffsets = (range: Range, containerSelector: string = CURRENT_SITE.contentSelector) => {
     const container = document.querySelector(containerSelector);
     if (!container) return { start: 0, end: 0 }; 
 
@@ -24,7 +26,7 @@ export const calculateOffsets = (range: Range, containerSelector: string = '#mw-
  * Finds a text node in the DOM based on a DB character index.
  * * DEBUG MODE ENABLED
  */
-export const findRangeFromOffsets = (start: number, end: number, containerSelector: string = '#mw-content-text'): Range | null => {
+export const findRangeFromOffsets = (start: number, end: number, containerSelector: string = CURRENT_SITE.contentSelector): Range | null => {
     const container = document.querySelector(containerSelector);
     if (!container) {
         console.error("Highlighter: Container not found", containerSelector);
