@@ -25,6 +25,7 @@ export const Label = () => {
 
   // 2. Label Mode (New Selection)
   if (currentSelection) {
+    console.log("[Label] Rendering UnitForm. Context anchors:", currentSelection.connected_anchors);
     return (
       <div className="p-4">
         <h2 className="text-sm font-bold text-slate-400 mb-4 uppercase tracking-wider">New addition</h2>
