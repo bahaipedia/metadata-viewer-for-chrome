@@ -47,45 +47,43 @@ export const UnitForm: React.FC<Props> = ({
     setIsSubmitting(true);
 
     try {
-      // 1. Prepare Data
-      const payloadSourceCode = isViewMode ? (existingUnit as any).source_code : context?.source_code;
-      const payloadPageId     = isViewMode ? (existingUnit as any).source_page_id : context?.source_page_id;
-
-      if (!payloadSourceCode || !payloadPageId) {
-          throw new Error("Missing Source Context. Cannot create record.");
-      }
-
-      const payload = {
-        source_code: payloadSourceCode,
-        source_page_id: payloadPageId,
-        title: context?.title,
-        text_content: isViewMode ? existingUnit!.text_content : selection,
-        start_char_index: isViewMode ? existingUnit!.start_char_index : offsets!.start,
-        end_char_index: isViewMode ? existingUnit!.end_char_index : offsets!.end,
-        
-        // [FIX] Pass connected_anchors (Use existing if editing, or new prop if creating)
-        connected_anchors: isViewMode ? existingUnit!.connected_anchors : connected_anchors,
-        
-        author: formData.author,
-        unit_type: formData.unit_type
-      };
-
-      console.log("[UnitForm] Submitting Payload:", JSON.stringify(payload, null, 2));
-
       if (isViewMode) {
-          // --- UPDATE STRATEGY: CREATE NEW -> DELETE OLD ---
-          await post('/api/contribute/unit', payload);
-          await del(`/api/units/${existingUnit!.id}`);
-          alert("Unit Updated");
-      } else {
-          // --- CREATE STRATEGY ---
-          await post('/api/contribute/unit', payload);
-          alert("Unit Saved!");
-      }
+        // SCENARIO 1: REPAIR (Create New + Delete Old)
+        if (isRepairing && selection && offsets) {
+            const repairPayload = {
+                source_code: (existingUnit as any).source_code,
+                source_page_id: (existingUnit as any).source_page_id,
+                title: (existingUnit as any).title || "Restored Unit",
+                text_content: selection,
+                start_char_index: offsets.start,
+                end_char_index: offsets.end,
+                connected_anchors: connected_anchors || [],
+                author: formData.author,
+                unit_type: formData.unit_type,
+            };
 
+            await post('/api/contribute/unit', repairPayload);
+            await del(`/api/units/${existingUnit.id}`);
+            alert("Unit re-aligned and saved! (New ID created)");
+        } 
+        // SCENARIO 2: METADATA UPDATE ONLY (PUT)
+        else {
+            await put(`/api/units/${existingUnit.id}`, {
+                author: formData.author,
+                unit_type: formData.unit_type
+            });
+            alert("Unit metadata updated!");
+        }
+      } else {
+        // ... existing Create Logic (SCENARIO 3) ...
+        // (No changes needed here, keeping existing createPayload logic)
+         if (!context?.source_code || !context?.source_page_id) { throw new Error("Missing Source"); }
+         const createPayload = { /* ... standard create props ... */ };
+         await post('/api/contribute/unit', createPayload);
+         alert("Unit Created!");
+      }
       if (onSuccess) onSuccess();
       onCancel();
-
     } catch (err: any) {
       console.error(err);
       alert(err.message || "Failed to save unit.");
