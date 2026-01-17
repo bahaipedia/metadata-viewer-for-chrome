@@ -9,6 +9,7 @@ export const useApi = () => {
     // 1. Get Token
     const storage = await chrome.storage.local.get(['api_token']);
     const token = storage.api_token;
+    const manifest = chrome.runtime.getManifest();
 
     if (!token) throw new Error("No API token found. Please login.");
 
