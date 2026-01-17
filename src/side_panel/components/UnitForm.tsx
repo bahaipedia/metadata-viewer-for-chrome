@@ -26,6 +26,7 @@ export const UnitForm: React.FC<Props> = ({
   existingUnit,
   onSuccess
 }) => {
+  console.log("[UnitForm] Received Props anchors:", connected_anchors);
   const { post, del } = useApi();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
