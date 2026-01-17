@@ -70,6 +70,8 @@ export const UnitForm: React.FC<Props> = ({
         unit_type: formData.unit_type
       };
 
+      console.log("[UnitForm] Submitting Payload:", JSON.stringify(payload, null, 2));
+
       if (isViewMode) {
           // --- UPDATE STRATEGY: CREATE NEW -> DELETE OLD ---
           await post('/api/contribute/unit', payload);
