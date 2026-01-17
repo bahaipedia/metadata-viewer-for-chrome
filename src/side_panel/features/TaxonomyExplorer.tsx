@@ -275,7 +275,7 @@ const TaxonomyNode = ({
     // 1. Fetch Units when expanded
     useEffect(() => {
         if (isExpanded && units.length === 0 && !isEditMode) {
-             get(`/api/units?tag_id=${node.id}&limit=10`).then(setUnits).catch(() => {});
+             get(`/api/units?tag_id=${node.id}`).then(setUnits).catch(() => {});
         }
     }, [isExpanded, refreshKey, isEditMode]);
 
