@@ -397,7 +397,7 @@ const TaxonomyNode = ({
                                 ) : (
                                     <>
                                         <span className="mr-1">📄</span>
-                                        <span className="truncate">{u.text_content.substring(0, 30)}...</span>
+                                        <span className="truncate">{u.text_content.substring(0, 60)}...</span>
                                     </>
                                 )}
                             </div>
