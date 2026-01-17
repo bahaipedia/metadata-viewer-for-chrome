@@ -25,30 +25,33 @@ export const Label = () => {
   }, [selectedUnit]);
 
   // Fetch Page Stats (Count of units)
+  // FETCH STATS
   useEffect(() => {
     const fetchStats = async () => {
-        // Try to get stats if we are idle
+        // Only run in Idle state
         if (!currentSelection && !selectedUnit) {
             try {
-                // Get current tab URL to deduce source info or ask API for breakdown
-                // Simplified: We assume the API can give us units for the active page if we ask nicely
-                // Since we don't have the page ID easily without a selection context, 
-                // we'll try to use the last known context or skip if completely unknown.
+                // 1. Get Active Tab
                 const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-                if (tabs[0]?.id) {
-                    const res = await chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_PAGE_METADATA' }).catch(() => null);
-                    if (res && res.source_page_id) {
-                         const units = await get(`/api/units?source_page_id=${res.source_page_id}`);
-                         if (units && units.length > 0) {
-                             setPageStats({
-                                 count: units.length,
-                                 snippet: units[0].text_content.substring(0, 60) + "..."
-                             });
-                         }
-                    }
+                if (!tabs[0]?.id) return;
+
+                // 2. Ask Content Script for Page Metadata (Source/ID)
+                const meta = await chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_PAGE_METADATA' }).catch(() => null);
+                
+                if (meta && meta.source_page_id) {
+                     // 3. Query API for units on this page
+                     const units = await get(`/api/units?source_page_id=${meta.source_page_id}`);
+                     if (units && units.length > 0) {
+                         setPageStats({
+                             count: units.length,
+                             snippet: units[0].text_content
+                         });
+                     } else {
+                         setPageStats({ count: 0, snippet: '' });
+                     }
                 }
-            } catch (e) {
-                // Silent fail
+            } catch (e) { 
+                console.log("Could not fetch page stats", e);
             }
         }
     };
