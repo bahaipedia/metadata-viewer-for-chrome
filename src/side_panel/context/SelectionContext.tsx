@@ -5,6 +5,7 @@ interface SelectionState {
   text: string;
   offsets: { start: number; end: number };
   context: PageMetadata;
+  connected_anchors?: number[];
 }
 
 interface SelectionContextType {
@@ -30,7 +31,8 @@ export const SelectionProvider = ({ children }: { children: ReactNode }) => {
         setCurrentSelection({
           text: request.text,
           offsets: request.offsets,
-          context: request.context
+          context: request.context,
+          connected_anchors: request.connected_anchors
         });
       }
       
