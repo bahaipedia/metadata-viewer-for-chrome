@@ -19,8 +19,8 @@
   "content_scripts": [
     {
       "matches": [
-        "*://*.bahai.works/*",
-        "*://*.bahai.org/library/*"
+        "https://*.bahai.works/*",
+        "https://*.bahai.org/library/*"
       ],
       "js": ["src/content/content.js"],
       "css": ["assets/index.css"],
