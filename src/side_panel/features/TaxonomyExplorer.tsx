@@ -77,12 +77,20 @@ export const TaxonomyExplorer: React.FC<Props> = ({
     };
 
     get(`/api/units/${revealUnitId}/tags`).then((tags: DefinedTag[]) => {
+        if (tags.length === 0) return;
+
+        // Take only the FIRST tag. 
+        // This prevents opening multiple folders and triggering multiple "scroll" 
+        // events that race against each other.
+        const primaryTag = tags[0]; 
+        
         const idsToExpand = new Set(expandedNodeIds);
-        tags.forEach(tag => {
-            const path = findPath(localTree, tag.id);
-            if (path) path.forEach(id => idsToExpand.add(id));
-        });
-        setExpandedNodeIds(idsToExpand);
+        const path = findPath(localTree, primaryTag.id);
+        
+        if (path) {
+            path.forEach(id => idsToExpand.add(id));
+            setExpandedNodeIds(idsToExpand);
+        }
     });
   }, [revealUnitId, localTree]);
 
