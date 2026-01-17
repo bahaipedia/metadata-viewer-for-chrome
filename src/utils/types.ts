@@ -9,6 +9,7 @@ export interface LogicalUnit {
   tags: (number | string)[]; 
   source_code?: string;
   source_page_id?: number;
+  connected_anchors?: number[];
   title?: string;
   created_by?: number;
   broken_index?: number;
