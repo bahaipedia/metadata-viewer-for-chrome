@@ -35,30 +35,31 @@ const handleSelection = () => {
         // ---------------------------------------------------------
         if (CURRENT_SITE.code === 'lib') {
 
-            // 1. Find START Anchor
+            // 1. Find START Anchor (String ID)
             const startAnchorData = findUpstreamAnchor(range.startContainer);
             if (!startAnchorData) {
                 console.warn("Selection Handler: Could not find starting anchor.");
                 return;
             }
 
-            // 2. Find END Anchor
+            // 2. Find END Anchor (String ID)
             const endAnchorData = findUpstreamAnchor(range.endContainer);
             
-            // 3. Find INTERMEDIATE Anchors (if start != end)
-            // We scan the range to capture any IDs we crossed over.
-            const intermediateIds: number[] = [];
+            // 3. Find INTERMEDIATE Anchors
+            const anchorsFound: string[] = [];
             
+            // [UPDATE] ALWAYS add the start anchor to the list
+            anchorsFound.push(startAnchorData.id);
+
             if (endAnchorData && startAnchorData.id !== endAnchorData.id) {
                 const commonAncestor = range.commonAncestorContainer;
                 const walker = document.createTreeWalker(
                     commonAncestor.nodeType === Node.ELEMENT_NODE ? commonAncestor : commonAncestor.parentNode!,
                     NodeFilter.SHOW_ELEMENT,
                     { acceptNode: (node) => {
-                        // Must be a valid ID anchor AND physically inside the selection range
                         if (isValidAnchor(node) && range.intersectsNode(node)) {
-                            // Don't include the start anchor in the "connected" list
-                            if ((node as Element).id !== String(startAnchorData.id)) {
+                            // Avoid duplicates if traversed
+                            if ((node as Element).id !== startAnchorData.id) {
                                 return NodeFilter.FILTER_ACCEPT;
                             }
                         }
@@ -67,51 +68,42 @@ const handleSelection = () => {
                 );
 
                 while (walker.nextNode()) {
-                    const id = parseInt((walker.currentNode as Element).id);
-                    if (!isNaN(id)) {
-                        intermediateIds.push(id);
-                    }
+                    // [UPDATE] Keep ID as string
+                    const id = (walker.currentNode as Element).id;
+                    if (id) anchorsFound.push(id);
                 }
                 
-                // Safety: Ensure the End Anchor is included if it wasn't picked up by the walker
-                if (!intermediateIds.includes(endAnchorData.id)) {
-                    intermediateIds.push(endAnchorData.id);
+                // Ensure End Anchor is included
+                if (!anchorsFound.includes(endAnchorData.id)) {
+                    anchorsFound.push(endAnchorData.id);
                 }
             }
 
             // 4. Calculate Offsets
-            // Start is relative to Start Anchor
             const startOffset = calculateRelativeOffset(startAnchorData.node, range.startContainer, range.startOffset);
-            
-            // End is relative to End Anchor (if multi-paragraph) OR Start Anchor (if single)
             const targetEndAnchor = endAnchorData ? endAnchorData.node : startAnchorData.node;
             const endOffset = calculateRelativeOffset(targetEndAnchor, range.endContainer, range.endOffset);
 
             // 5. Construct Payload
-            context.source_page_id = startAnchorData.id; 
-            payload.offsets = { start: startOffset, end: endOffset };
-            payload.connected_anchors = intermediateIds; 
+            // [UPDATE] Do NOT overwrite context.source_page_id. It is now the Path Hash (Bucket).
+            // context.source_page_id = ... (REMOVED)
             
-            console.log(`Selection: Anchor ${startAnchorData.id} -> ${endAnchorData?.id} (Connected: ${intermediateIds.length})`, payload);
+            payload.offsets = { start: startOffset, end: endOffset };
+            
+            // [UPDATE] Store ALL anchors here
+            payload.connected_anchors = Array.from(new Set(anchorsFound)); 
+            
+            console.log(`Selection: ${startAnchorData.id} -> ${endAnchorData?.id}`, payload);
 
         } else {
-            // ---------------------------------------------------------
-            // STRATEGY: MEDIAWIKI (Container-Relative)
-            // ---------------------------------------------------------
+            // STRATEGY: MEDIAWIKI
             const contentContainer = document.querySelector(CURRENT_SITE.contentSelector);
             if (contentContainer && contentContainer.contains(selection.anchorNode)) {
                 payload.offsets = calculateOffsets(range, CURRENT_SITE.contentSelector);
             } else {
-                return; // Invalid container
+                return;
             }
         }
-
-        // [DEBUG]
-        console.log("--- [V1 CHECK] Content Script Payload ---", {
-            hasAnchors: "connected_anchors" in payload,
-            anchorsValue: payload.connected_anchors,
-            fullPayload: payload
-        });
 
         chrome.runtime.sendMessage(payload);
 
@@ -126,37 +118,29 @@ const isValidAnchor = (node: Node): boolean => {
            !!node.id;
 };
 
-// [CHANGED] Robust Traversal to find the "Header" anchor for any given node
-const findUpstreamAnchor = (node: Node | null): { id: number, node: Node } | null => {
+// [UPDATE] Returns ID as string
+const findUpstreamAnchor = (node: Node | null): { id: string, node: Node } | null => {
     let curr = node;
-
-    // Traverse DOM upwards/backwards
     while (curr) {
-        // 1. Check if 'curr' is the anchor
         if (isValidAnchor(curr)) {
-            return { id: parseInt((curr as Element).id), node: curr };
+            return { id: (curr as Element).id, node: curr };
         }
 
-        // 2. Check Previous Siblings (The anchor is usually a sibling of the text node)
         let sib = curr.previousSibling;
         while (sib) {
             if (isValidAnchor(sib)) {
-                return { id: parseInt((sib as Element).id), node: sib };
+                return { id: (sib as Element).id, node: sib };
             }
-            // If sibling is a wrapper (like .brl-head), look inside it
             if (sib.nodeType === Node.ELEMENT_NODE && (sib as Element).querySelector) {
                 const childAnchor = (sib as Element).querySelector('.brl-location[id]');
                 if (childAnchor) {
-                     return { id: parseInt(childAnchor.id), node: childAnchor };
+                     return { id: childAnchor.id, node: childAnchor };
                 }
             }
             sib = sib.previousSibling;
         }
 
-        // 3. Move Up
         curr = curr.parentNode;
-        
-        // Boundary Check: Don't go outside the content area
         if (curr && (curr as Element).classList?.contains('library-document-content')) {
             break;
         }
@@ -164,7 +148,6 @@ const findUpstreamAnchor = (node: Node | null): { id: number, node: Node } | nul
     return null;
 };
 
-// Calculate characters from the *end* of the anchor tag to the selection point
 const calculateRelativeOffset = (anchorNode: Node, targetNode: Node, targetOffset: number): number => {
     const range = document.createRange();
     range.setStartAfter(anchorNode);
