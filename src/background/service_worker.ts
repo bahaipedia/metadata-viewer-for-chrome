@@ -220,10 +220,7 @@ async function fetchPageData(sourceCode: string, sourcePageId: number) {
         // 3. Fetch (Same headers as useApi)
         const response = await fetch(url.toString(), {
             method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            }
+            headers: getHeaders(token) 
         });
 
         if (!response.ok) {
@@ -254,10 +251,7 @@ async function fetchBatchData(sourceCode: string, pageIds: number[]) {
         // We use POST because the list of IDs could be long
         const response = await fetch(`${API_BASE}/api/units/batch`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
+            headers: getHeaders(token),
             body: JSON.stringify({
                 source_code: sourceCode,
                 source_page_ids: pageIds
@@ -285,7 +279,7 @@ async function performHandshake(credentials?: {username: string, password: strin
         
         const response = await fetch(`${API_BASE}/auth/verify-session`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: getHeaders(), 
             body: JSON.stringify({ 
                 username: credentials.username, 
                 bot_password: credentials.password 
@@ -318,10 +312,7 @@ async function batchRealignUnits(updates: any[]) {
 
         await fetch(`${API_BASE}/api/units/batch_realign`, {
             method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
+            headers: getHeaders(token),
             body: JSON.stringify({ updates })
         });
         console.log(`[Background] Sent ${updates.length} healing updates.`);
