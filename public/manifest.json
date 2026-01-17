@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Bahá’í Text Annotation Tool",
-  "version": "1.0",
+  "version": "2.0",
   "description": "Create and overlay knowledge graphs onto Bahá’í related text",
   "permissions": [
     "storage",
