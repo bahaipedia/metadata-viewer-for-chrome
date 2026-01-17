@@ -1,7 +1,17 @@
 import { PageMetadata } from '@/utils/types';
 import { CURRENT_SITE } from '@/utils/site_config';
 
-// [NEW] Simple hash to turn a URL path into a stable Integer ID
+// STRICT Backend Requirement: Only these specific strings are allowed.
+function getCanonicalAuthor(urlSlug: string): string {
+    if (urlSlug.includes('the-bab')) return "The Báb";
+    if (urlSlug.includes('bahaullah')) return "Bahá’u’lláh";
+    if (urlSlug.includes('abdul-baha')) return "‘Abdu’l-Bahá";
+    if (urlSlug.includes('shoghi-effendi')) return "Shoghi Effendi";
+    if (urlSlug.includes('universal-house-justice')) return "Universal House of Justice";
+    return "Undefined";
+}
+
+// Simple hash to turn a URL path into a stable Integer ID
 // Required because DB schema enforces source_page_id as INT
 function getPathHash(path: string): number {
     let hash = 0;
@@ -15,23 +25,30 @@ function getPathHash(path: string): number {
 }
 
 function getPageAuthor(): string {
-    // 1. Bahai.org specific extraction
+    // 1. Bahai.org Specific Extraction
     if (CURRENT_SITE.code === 'lib') {
-        // Attempt to parse URL structure: /library/author-name/book-name
-        const parts = window.location.pathname.split('/');
-        if (parts[1] === 'library' && parts[2]) {
-            // Convert "abdul-baha" to "Abdul-Baha"
-            return parts[2].split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-        }
+        // URL Structure: /library/authoritative-texts/AUTHOR-SLUG/book-name...
+        const path = window.location.pathname;
+        return getCanonicalAuthor(path);
     }
 
-    // 2. MediaWiki / Standard Fallback
+    // 2. MediaWiki / Standard Fallback (Bahai.works)
     const headerEl = document.getElementById('header_author_text');
     if (headerEl) {
+        const text = (headerEl.textContent || "").trim();
+        // Check if the header text contains one of our canonical keys
+        if (text.includes('Báb')) return "The Báb";
+        if (text.includes('Bahá’u’lláh')) return "Bahá’u’lláh";
+        if (text.includes('Abdu’l-Bahá')) return "‘Abdu’l-Bahá";
+        if (text.includes('Shoghi Effendi')) return "Shoghi Effendi";
+        if (text.includes('Universal House of Justice')) return "Universal House of Justice";
+        
+        // Fallback for non-canonical authors on the wiki (e.g. historical figures)
         const fn = headerEl.querySelector('.fn');
-        return (fn?.textContent || headerEl.textContent || "Undefined").trim();
+        return (fn?.textContent || text).trim();
     }
     
+    // 3. Metadata Fallback
     const metaAuthor = document.querySelector('meta[name="author"]');
     if (metaAuthor) {
         return metaAuthor.getAttribute('content') || "Undefined";
@@ -41,16 +58,16 @@ function getPageAuthor(): string {
 }
 
 export const getPageMetadata = (): PageMetadata => {
-    const html = document.documentElement.innerHTML;
-    
     // 1. Source Code from Config
     const sourceCode = CURRENT_SITE.code;
 
-    // 2. Extract ID (Wiki ID or Path Hash)
+    // 2. Extract ID
     let pageId = 0;
-    let revId = 0;
+    let revId = 1;
 
     if (CURRENT_SITE.isMediaWiki) {
+        const html = document.documentElement.innerHTML;
+        
         const idJsonMatch = html.match(/"wgArticleId":\s*(\d+)/);
         const idVarMatch = html.match(/wgArticleId\s*=\s*(\d+)/);
         if (idJsonMatch) pageId = parseInt(idJsonMatch[1]);
@@ -61,10 +78,10 @@ export const getPageMetadata = (): PageMetadata => {
         if (revJsonMatch) revId = parseInt(revJsonMatch[1]);
         else if (revVarMatch) revId = parseInt(revVarMatch[1]);
     } else {
-        // Non-Wiki: Hash the pathname to create a stable ID
-        pageId = getPathHash(window.location.pathname);
-        // Rev ID is not applicable, use 1 or timestamp if needed. 
-        revId = 1; 
+        // For 'lib', the Page ID is effectively "0" at the global level.
+        // The specific paragraph ID (anchor) will be overwritten by selection_handler.ts
+        // when a user actually selects text. 
+        pageId = 0;
     }
 
     return {
@@ -72,7 +89,7 @@ export const getPageMetadata = (): PageMetadata => {
         source_page_id: pageId,
         latest_rev_id: revId,
         url: window.location.href,
-        title: document.title.split(' - ')[0], // Bahai.org usually puts title first
+        title: document.title.split(' - ')[0], // Bahai.org titles are typically "Book Name - Author"
         author: getPageAuthor()
     };
 };
