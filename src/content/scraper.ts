@@ -78,10 +78,8 @@ export const getPageMetadata = (): PageMetadata => {
         if (revJsonMatch) revId = parseInt(revJsonMatch[1]);
         else if (revVarMatch) revId = parseInt(revVarMatch[1]);
     } else {
-        // For 'lib', the Page ID is effectively "0" at the global level.
-        // The specific paragraph ID (anchor) will be overwritten by selection_handler.ts
-        // when a user actually selects text. 
-        pageId = 0;
+        // FIX: Use the hash function to generate unique IDs for library page
+        pageId = getPathHash(window.location.pathname);
     }
 
     return {
@@ -89,7 +87,7 @@ export const getPageMetadata = (): PageMetadata => {
         source_page_id: pageId,
         latest_rev_id: revId,
         url: window.location.href,
-        title: document.title.split(' - ')[0], // Bahai.org titles are typically "Book Name - Author"
+        title: document.title.split(' - ')[0],
         author: getPageAuthor()
     };
 };
