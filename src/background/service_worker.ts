@@ -24,6 +24,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true; 
     }
 
+    // Handle Batch Fetch for Bahai.org
+    if (request.type === 'FETCH_BATCH_DATA') {
+        fetchBatchData(request.source_code, request.page_ids).then(sendResponse);
+        return true; 
+    }
+
     if (request.type === 'BATCH_REALIGN_UNITS') {
         const { updates } = request;
         if (updates && updates.length > 0) {
@@ -220,7 +226,42 @@ async function fetchPageData(sourceCode: string, sourcePageId: number) {
     }
 }
 
-// 4. AUTH HANDSHAKE (Unchanged)
+// Function to Fetch Multiple IDs at once
+async function fetchBatchData(sourceCode: string, pageIds: number[]) {
+    try {
+        const storage = await chrome.storage.local.get(['api_token']);
+        const token = storage.api_token;
+        
+        if (!token) return { units: [] };
+
+        // We use POST because the list of IDs could be long
+        const response = await fetch(`${API_BASE}/api/units/batch`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                source_code: sourceCode,
+                source_page_ids: pageIds
+            })
+        });
+
+        if (!response.ok) {
+            console.error(`[Background] Batch API Error ${response.status}`);
+            return { units: [] };
+        }
+
+        const data = await response.json();
+        return { units: data.units || data };
+
+    } catch (e) {
+        console.error("[Background] Batch network error:", e);
+        return { units: [] };
+    }
+}
+
+// 4. AUTH HANDSHAKE
 async function performHandshake(credentials?: {username: string, password: string}) {
     try {
         if (!credentials) return { success: false, error: "Credentials missing" };
