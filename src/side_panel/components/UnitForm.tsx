@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { PageMetadata, LogicalUnit } from '@/utils/types';
 import { useApi } from '@/hooks/useApi';
+import { ArrowPathIcon } from '@heroicons/react/24/outline';
 
 interface Props {
   // Common
@@ -8,13 +9,17 @@ interface Props {
   onSuccess?: () => void;
   context?: PageMetadata | null;
 
-  // Create Mode
+  // Create Mode / Repair Data
   selection?: string;
   offsets?: { start: number; end: number };
-  connected_anchors?: number[]; // [FIX] Added to Props
+  connected_anchors?: number[]; 
 
   // View Mode
   existingUnit?: LogicalUnit & { can_delete?: boolean }; 
+  
+  // Repair Logic
+  isRepairing?: boolean;
+  onEnterRepair?: () => void;
 }
 
 export const UnitForm: React.FC<Props> = ({ 
@@ -22,20 +27,19 @@ export const UnitForm: React.FC<Props> = ({
   context, 
   onCancel, 
   offsets, 
-  connected_anchors, // [FIX] Destructure here
+  connected_anchors,
   existingUnit,
-  onSuccess
+  onSuccess,
+  isRepairing,
+  onEnterRepair
 }) => {
-  console.log("[UnitForm] Received Props anchors:", connected_anchors);
-  const { post, del } = useApi();
+  const { post, put, del } = useApi();
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Delete Confirmation State
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
-  // Determine Mode
+  // Mode Detection
   const isViewMode = !!existingUnit;
-  const canEdit = existingUnit?.can_delete ?? true; // Default to true for Create Mode
+  const canEdit = existingUnit?.can_delete ?? true; 
 
   const [formData, setFormData] = useState({
     author: existingUnit?.author || "‘Abdu’l-Bahá",
@@ -48,25 +52,40 @@ export const UnitForm: React.FC<Props> = ({
 
     try {
       if (isViewMode) {
+        
         // SCENARIO 1: REPAIR (Create New + Delete Old)
+        // We MUST create a new record to trigger the RAG indexer
         if (isRepairing && selection && offsets) {
+            
+            // 1. Build Payload for NEW unit (inheriting root props from old unit)
+            // Note: We use existingUnit.source_code/id because 'context' might be null in ViewMode
             const repairPayload = {
                 source_code: (existingUnit as any).source_code,
                 source_page_id: (existingUnit as any).source_page_id,
-                title: (existingUnit as any).title || "Restored Unit",
+                title: (existingUnit as any).title || "Restored Unit", // Fallback title
+                
+                // New Position Data
                 text_content: selection,
                 start_char_index: offsets.start,
                 end_char_index: offsets.end,
                 connected_anchors: connected_anchors || [],
+                
+                // Form Data
                 author: formData.author,
                 unit_type: formData.unit_type,
+
+                // Carry over tags from the old unit if you have them in the object
+                // tags: (existingUnit as any).tags || [] 
             };
 
+            // 2. Execute Swap
             await post('/api/contribute/unit', repairPayload);
             await del(`/api/units/${existingUnit.id}`);
+            
             alert("Unit re-aligned and saved! (New ID created)");
         } 
         // SCENARIO 2: METADATA UPDATE ONLY (PUT)
+        // Text didn't change, so we can just update the row. RAG doesn't need to re-index text.
         else {
             await put(`/api/units/${existingUnit.id}`, {
                 author: formData.author,
@@ -74,16 +93,32 @@ export const UnitForm: React.FC<Props> = ({
             });
             alert("Unit metadata updated!");
         }
+
       } else {
-        // ... existing Create Logic (SCENARIO 3) ...
-        // (No changes needed here, keeping existing createPayload logic)
-         if (!context?.source_code || !context?.source_page_id) { throw new Error("Missing Source"); }
-         const createPayload = { /* ... standard create props ... */ };
-         await post('/api/contribute/unit', createPayload);
-         alert("Unit Created!");
+        // SCENARIO 3: FRESH CREATE (POST)
+        if (!context?.source_code || !context?.source_page_id) {
+            throw new Error("Missing Source Context. Cannot create record.");
+        }
+
+        const createPayload = {
+          source_code: context.source_code,
+          source_page_id: context.source_page_id,
+          title: context.title,
+          text_content: selection,
+          start_char_index: offsets?.start,
+          end_char_index: offsets?.end,
+          connected_anchors: connected_anchors || [],
+          author: formData.author,
+          unit_type: formData.unit_type
+        };
+
+        await post('/api/contribute/unit', createPayload);
+        alert("Unit Created!");
       }
+
       if (onSuccess) onSuccess();
       onCancel();
+
     } catch (err: any) {
       console.error(err);
       alert(err.message || "Failed to save unit.");
@@ -92,25 +127,19 @@ export const UnitForm: React.FC<Props> = ({
     }
   };
 
-  // Modified Cancel Handler
   const handleCancel = () => {
     if (deleteConfirmOpen) {
-        // If confirming delete, "Cancel" just backs out of the delete mode
-        setDeleteConfirmOpen(false);
+      setDeleteConfirmOpen(false);
     } else {
-        // Otherwise, it closes the form
-        onCancel();
+      onCancel();
     }
   };
 
   const handleDelete = async () => {
-      // Step 1: Open Confirmation
       if (!deleteConfirmOpen) {
           setDeleteConfirmOpen(true);
           return;
       }
-
-      // Step 2: Actually Delete
       try {
           await del(`/api/units/${existingUnit!.id}`);
           alert("Unit deleted.");
@@ -189,18 +218,14 @@ export const UnitForm: React.FC<Props> = ({
       {/* 3. BUTTONS */}
       <div className="flex gap-2 pt-2 border-t border-slate-100 mt-4">
         
-        {/* CASE A: NO PERMISSION (Close Only) */}
+        {/* CASE A: NO PERMISSION */}
         {isViewMode && !canEdit && (
-            <button 
-                type="button" 
-                onClick={onCancel}
-                className="w-full py-2 text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 rounded"
-            >
+            <button type="button" onClick={onCancel} className="w-full py-2 text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 rounded">
                 Close
             </button>
         )}
 
-        {/* CASE B: CREATE MODE (Cancel / Save) */}
+        {/* CASE B: CREATE MODE */}
         {!isViewMode && (
             <>
                 <button type="button" onClick={onCancel} className="flex-1 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded">
@@ -212,10 +237,9 @@ export const UnitForm: React.FC<Props> = ({
             </>
         )}
 
-        {/* CASE C: HAS PERMISSION (Cancel / Update / Delete) */}
+        {/* CASE C: HAS PERMISSION (EDIT/REPAIR) */}
         {isViewMode && canEdit && (
             <>
-                {/* 1. Cancel Button: Always visible, changes behavior based on state */}
                 <button 
                     type="button" 
                     onClick={handleCancel} 
@@ -224,11 +248,10 @@ export const UnitForm: React.FC<Props> = ({
                     {deleteConfirmOpen ? 'Cancel' : 'Close'} 
                 </button>
 
-                {/* 2. Update Button: Hidden during delete confirmation to reduce noise */}
                 {!deleteConfirmOpen && (
                     <button 
                         type="submit" 
-                        disabled={isRepairing && !selection} 
+                        disabled={isRepairing && !selection} // Disable if repairing but no text selected
                         className={`flex-1 py-2 text-sm text-white rounded transition-colors ${
                             isRepairing 
                             ? 'bg-green-600 hover:bg-green-700 disabled:bg-green-300' 
@@ -239,14 +262,13 @@ export const UnitForm: React.FC<Props> = ({
                     </button>
                 )}
 
-                {/* 3. Delete Button: Changes color/text when confirming */}
                 <button 
                     type="button"
                     onClick={handleDelete}
                     className={`px-3 py-2 text-sm rounded transition-all duration-200 border ${
                         deleteConfirmOpen 
-                            ? 'flex-1 bg-red-600 text-white border-red-700 hover:bg-red-700 font-bold' // Confirm State
-                            : 'bg-white text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300' // Initial State (Clean, not muted)
+                            ? 'flex-1 bg-red-600 text-white border-red-700 hover:bg-red-700 font-bold' 
+                            : 'bg-white text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300' 
                     }`}
                 >
                     {deleteConfirmOpen ? "Confirm Delete?" : "Delete"}
