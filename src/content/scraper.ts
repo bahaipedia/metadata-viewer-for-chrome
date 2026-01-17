@@ -82,12 +82,15 @@ export const getPageMetadata = (): PageMetadata => {
         pageId = getPathHash(window.location.pathname);
     }
 
+    // [UPDATE] Split by " - " OR " | " to handle Bahai.org titles correctly
+    const titleParts = document.title.split(/ - | \| /);
+
     return {
         source_code: sourceCode,
         source_page_id: pageId,
         latest_rev_id: revId,
         url: window.location.href,
-        title: document.title.split(' - ')[0],
+        title: titleParts[0].trim(),
         author: getPageAuthor()
     };
 };
