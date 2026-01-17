@@ -435,37 +435,52 @@ const highlightUnit = (unit: LogicalUnit) => {
 
 // Logic for Bahai.org
 const highlightLibUnit = (unit: LogicalUnit) => {
+    console.log(`[Highlighter] Processing Unit ${unit.id} (Bahai.org mode)`);
+    
     const startId = unit.source_page_id;
     const connected = unit.connected_anchors || [];
     
-    // Robust element lookup (ID fallback to Name)
+    // 1. Lookup Anchor
     let startEl = document.getElementById(String(startId));
     if (!startEl) {
         const named = document.getElementsByName(String(startId));
         if (named.length > 0) startEl = named[0] as HTMLElement;
     }
 
-    // IMPORTANT: Determine the Scope. For bahai.org, 1 Unit = 1 Paragraph (Parent of the anchor)
-    // We pass this parent to renderRelativeRange so it knows when to STOP walking.
-    if (startEl && startEl.parentElement) {
-        const scope = startEl.parentElement;
-        
-        if (connected.length === 0) {
-            // Single Paragraph
-            renderRelativeRange(startEl, unit.start_char_index, unit.end_char_index, unit, scope);
-        } else {
-            // Multi-Paragraph Start (Highlight to end of scope)
-            renderRelativeRange(startEl, unit.start_char_index, 99999, unit, scope);
-        }
+    if (!startEl) {
+        console.error(`[Highlighter] Unit ${unit.id}: Start Anchor ID '${startId}' NOT FOUND in DOM.`);
+        return;
     }
 
-    // Connected Anchors (Middle & End)
+    // 2. Lookup Scope
+    if (!startEl.parentElement) {
+        console.error(`[Highlighter] Unit ${unit.id}: Anchor '${startId}' has no parentElement.`);
+        return;
+    }
+
+    const scope = startEl.parentElement;
+    console.log(`[Highlighter] Unit ${unit.id}: Found Anchor. Scope is <${scope.tagName.toLowerCase()} class="${scope.className}">`);
+
+    // 3. Render
+    if (connected.length === 0) {
+        console.log(`[Highlighter] Unit ${unit.id}: Rendering Single Paragraph (${unit.start_char_index} -> ${unit.end_char_index})`);
+        renderRelativeRange(startEl, unit.start_char_index, unit.end_char_index, unit, scope);
+    } else {
+        console.log(`[Highlighter] Unit ${unit.id}: Rendering Multi-Part START (${unit.start_char_index} -> END)`);
+        renderRelativeRange(startEl, unit.start_char_index, 99999, unit, scope);
+    }
+
+    // 4. Connected Anchors
     connected.forEach((anchorId, index) => {
         let anchorEl = document.getElementById(String(anchorId));
-        if (!anchorEl || !anchorEl.parentElement) return;
+        if (!anchorEl || !anchorEl.parentElement) {
+            console.warn(`[Highlighter] Unit ${unit.id}: Connected anchor ${anchorId} missing or detached.`);
+            return;
+        }
 
         const scope = anchorEl.parentElement;
         const isLast = index === connected.length - 1;
+        console.log(`[Highlighter] Unit ${unit.id}: Rendering Connected Anchor ${anchorId} (Last? ${isLast})`);
 
         if (isLast) {
             renderRelativeRange(anchorEl, 0, unit.end_char_index, unit, scope);
@@ -485,32 +500,42 @@ const renderRelativeRange = (
 ) => {
     const range = document.createRange();
     
-    // 1. Start walker at the Scope Root (Paragraph level)
+    // 1. Start walker at Scope
     const walker = document.createTreeWalker(scopeEl, NodeFilter.SHOW_TEXT);
     
     let charCount = 0;
     let startFound = false;
     let node;
+    let nodesScanned = 0;
+
+    console.log(`[Highlighter] Starting Scan for Unit ${unit.id}. Offset Goal: ${startOffset}. Scope text length: ${scopeEl.textContent?.length}`);
 
     while ((node = walker.nextNode())) {
-        // 2. Skip Logic: Ensure strict ordering
-        // If the current text node is BEFORE the anchor, skip it.
-        // We use bitmask 4 (Node.DOCUMENT_POSITION_FOLLOWING).
+        nodesScanned++;
+
+        // 2. Position Check
         if (anchorEl !== scopeEl) {
             const position = anchorEl.compareDocumentPosition(node);
+            // We want nodes FOLLOWING (4) or CONTAINED_BY (16 - unlikely for text) the anchor
             if (!(position & Node.DOCUMENT_POSITION_FOLLOWING)) {
+                // console.log(`[Highlighter] Node skipped (Precedes anchor): "${node.textContent?.substring(0, 10)}..."`);
                 continue; 
             }
         }
 
-        // 3. Skip Page Numbers (Noise)
-        if (node.parentElement?.closest('.brl-pnum')) continue;
+        // 3. Noise Check
+        if (node.parentElement?.closest('.brl-pnum')) {
+            console.log(`[Highlighter] Node skipped (Noise/PageNum)`);
+            continue;
+        }
 
         const len = node.textContent?.length || 0;
+        // console.log(`[Highlighter] Scanning Node: "${node.textContent?.substring(0,10)}..." (Len: ${len}, CurrentCount: ${charCount})`);
         
         // A. FIND START
         if (!startFound) {
             if (charCount + len >= startOffset) {
+                console.log(`[Highlighter] START FOUND in node: "${node.textContent?.substring(0,20)}..." at offset ${startOffset - charCount}`);
                 range.setStart(node, startOffset - charCount);
                 startFound = true;
             }
@@ -519,24 +544,29 @@ const renderRelativeRange = (
         // B. FIND END
         if (startFound) {
              if (charCount + len >= endOffset) {
+                 console.log(`[Highlighter] END FOUND in node: "${node.textContent?.substring(0,20)}..." at offset ${endOffset - charCount}`);
                  range.setEnd(node, endOffset - charCount);
                  safeHighlightRange(range, unit); 
                  return;
              }
         }
         
-        // Only increment count if we are AFTER the anchor (which we are, due to step 2)
+        // Only increment if we are actively scanning valid text
         charCount += len;
         
-        if (charCount > 50000) break; // Safety
+        if (charCount > 50000) {
+            console.warn(`[Highlighter] Force break: >50k chars scanned.`);
+            break; 
+        }
     }
     
-    // C. Handle "Rest of Paragraph" case
+    // C. Handle "Rest of Paragraph"
     if (startFound) {
+        console.log(`[Highlighter] Reached End of Scope. capping selection.`);
         range.setEnd(node || anchorEl, node?.textContent?.length || 0);
         safeHighlightRange(range, unit);
     } else {
-        console.warn(`[Highlighter] Failed to find start for Unit ${unit.id}. Scanned ${charCount} chars in scope.`);
+        console.error(`[Highlighter] FAILED. Scanned ${nodesScanned} nodes, ${charCount} chars. Never reached StartOffset ${startOffset}.`);
     }
 };
 
