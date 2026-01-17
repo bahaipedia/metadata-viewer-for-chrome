@@ -69,13 +69,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     
     if (request.type === 'NAVIGATE_TO_UNIT') {
-        const { source_code, source_page_id, unit_id, title } = request;
+        const { source_code, source_page_id, unit_id, title, connected_anchors } = request;
 
         let targetUrl = '';
 
+        // Determine the real navigation ID (Anchor vs PageID)
+        let navId = source_page_id;
+        if (source_code === 'lib' && connected_anchors && connected_anchors.length > 0) {
+            navId = connected_anchors[0];
+        }
+
         // Handle Bahai.org Library
         if (source_code === 'lib') {
-            targetUrl = `https://www.bahai.org/r/${source_page_id}`;
+            targetUrl = `https://www.bahai.org/r/${navId}`;
         } else {
             // 1. Resolve Base URL (Adjust domains if necessary)
             let baseUrl = 'https://bahai.works'; 
@@ -84,13 +90,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             if (source_code === 'bm') baseUrl = 'https://bahai.media';
 
             // MediaWiki standard URL pattern
-            targetUrl = `${baseUrl}/index.php?curid=${source_page_id}`;
+            targetUrl = `${baseUrl}/index.php?curid=${navId}`;
             if (title) {
                 const safeTitle = title.replace(/ /g, '_');
                 const prettyTitle = encodeURIComponent(safeTitle).replace(/%2F/g, '/');
                 targetUrl = `${baseUrl}/${prettyTitle}`;
             } else {
-                console.warn(`[Nav] Title missing for PageID ${source_page_id}. Falling back to curid.`);
+                console.warn(`[Nav] Title missing for PageID ${navId}. Falling back to curid.`);
             }
         }
 
