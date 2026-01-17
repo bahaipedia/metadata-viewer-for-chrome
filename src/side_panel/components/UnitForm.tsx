@@ -11,6 +11,7 @@ interface Props {
   // Create Mode
   selection?: string;
   offsets?: { start: number; end: number };
+  connected_anchors?: number[]; // [FIX] Added to Props
 
   // View Mode
   existingUnit?: LogicalUnit & { can_delete?: boolean }; 
@@ -21,6 +22,7 @@ export const UnitForm: React.FC<Props> = ({
   context, 
   onCancel, 
   offsets, 
+  connected_anchors, // [FIX] Destructure here
   existingUnit,
   onSuccess
 }) => {
@@ -59,6 +61,10 @@ export const UnitForm: React.FC<Props> = ({
         text_content: isViewMode ? existingUnit!.text_content : selection,
         start_char_index: isViewMode ? existingUnit!.start_char_index : offsets!.start,
         end_char_index: isViewMode ? existingUnit!.end_char_index : offsets!.end,
+        
+        // [FIX] Pass connected_anchors (Use existing if editing, or new prop if creating)
+        connected_anchors: isViewMode ? existingUnit!.connected_anchors : connected_anchors,
+        
         author: formData.author,
         unit_type: formData.unit_type
       };
@@ -123,7 +129,7 @@ export const UnitForm: React.FC<Props> = ({
             {isViewMode ? "SAVED CONTENT" : "SELECTED TEXT"}
         </label>
         <p className="text-sm text-slate-800 line-clamp-6 italic">
-            "{isViewMode ? existingUnit.text_content : selection}"
+            "{isViewMode ? existingUnit!.text_content : selection}"
         </p>
       </div>
 
