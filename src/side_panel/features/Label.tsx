@@ -127,40 +127,47 @@ export const Label = () => {
   // 4. Idle State
   return (
     <div className="flex flex-col h-full bg-slate-50">
-        <div className="p-4 border-b border-slate-200 bg-white shadow-sm">
-            <Header title="Label Manager" />
-        </div>
         
-        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-400 space-y-4">
-            <div className="bg-slate-100 p-4 rounded-full">
-                <PencilSquareIcon className="h-10 w-10 text-slate-300" /> 
-            </div>
-            
-            <div className="space-y-2 max-w-xs">
-                <p className="text-sm">
-                    Highlight a tablet, prayer, or historical account to label it.
-                </p>
-                <p className="text-xs text-slate-300">
-                    This allows the RAG system to answer queries like: <br/>
-                    <span className="italic">"Find all tablets from ‘Abdu’l-Bahá in this book"</span>
-                </p>
+        {/* HEADER (Matched to Q&A Page) */}
+        <div className="p-4 bg-white border-b border-slate-200 shadow-sm space-y-4">
+            <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2 group relative">
+                    <h2 className="text-lg font-bold text-slate-800">
+                        Label Manager
+                    </h2>
+                    <QuestionMarkCircleIcon className="w-5 h-5 text-slate-400 cursor-help hover:text-slate-600 transition-colors" />
+                    
+                    {/* Tooltip */}
+                    <div className="absolute left-0 top-full mt-2 hidden group-hover:block w-72 p-3 bg-slate-800 text-white text-xs font-normal rounded-md shadow-xl z-20 leading-relaxed">
+                        <p className="font-bold mb-1 border-b border-slate-600 pb-1">How to use this page:</p>
+                        <p>Highlight a tablet, prayer, or historical account to label it. This allows the RAG system to understand the specific <em>type</em> of content.</p>
+                        <div className="absolute bottom-full left-6 border-8 border-transparent border-b-slate-800"></div>
+                    </div>
+                </div>
             </div>
 
-            {pageStats && (
-                <div className="mt-8 pt-6 border-t border-slate-200 w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">
-                        This page contains {pageStats.count} unit{pageStats.count !== 1 ? 's' : ''}
+            {/* STATS SECTION (Requested Feature) */}
+            {pageStats && pageStats.count > 0 && (
+                <div className="bg-blue-50 rounded border border-blue-100 p-3 animate-in fade-in duration-500">
+                    <p className="text-xs font-bold text-blue-800 mb-1 uppercase tracking-wide">
+                        This page contains: {pageStats.count} Unit{pageStats.count !== 1 ? 's' : ''}
                     </p>
-                    <div className="bg-white p-3 rounded border border-slate-200 text-left shadow-sm opacity-80 hover:opacity-100 transition-opacity cursor-default">
-                        <div className="flex items-start gap-2">
-                            <DocumentTextIcon className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
-                            <span className="text-xs text-slate-600 font-serif italic">
-                                "{pageStats.snippet}"
-                            </span>
-                        </div>
+                    <div className="flex items-start gap-2 opacity-75">
+                         <DocumentTextIcon className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                         <span className="text-xs text-blue-900 font-serif italic line-clamp-2">
+                             "{pageStats.snippet}"
+                         </span>
                     </div>
                 </div>
             )}
+        </div>
+        
+        {/* EMPTY STATE PLACEHOLDER */}
+        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-400">
+            <PencilSquareIcon className="h-12 w-12 mb-2 opacity-20" /> 
+            <p className="text-sm max-w-xs">
+                Select text on the page to begin labeling a new logical unit.
+            </p>
         </div>
     </div>
   );
