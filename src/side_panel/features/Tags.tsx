@@ -182,6 +182,7 @@ export const Tags = () => {
         text_content: currentSelection.text,
         start_char_index: currentSelection.offsets.start,
         end_char_index: currentSelection.offsets.end,
+        connected_anchors: currentSelection.connected_anchors || [],
         unit_type: 'user_highlight',
         author: author,
         tags: selectedTags.map(t => t.id) 
