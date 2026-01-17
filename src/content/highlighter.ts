@@ -91,8 +91,18 @@ export const initHighlighter = async () => {
 
 // Helper: Extract ONLY visible text (ignores <script>, <style>, etc)
 const getContentText = (): string => {
-    const container = document.querySelector('#mw-content-text');
+    // 1. Try MediaWiki container
+    let container = document.querySelector('#mw-content-text');
+    
+    // 2. Try Bahai.org Library container (Fallback)
+    if (!container && CURRENT_SITE.code === 'lib') {
+        // Based on your snippet, content is in data-unit="section" or generally in the body
+        // You might need to adjust this selector to be more specific if there is a wrapper
+        container = document.querySelector('[data-unit="section"]') || document.body;
+    }
+
     if (!container) return "";
+    
     const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
     let text = "";
     let node;
