@@ -81,7 +81,7 @@ export const AuthGate: React.FC<Props> = ({ onLogin }) => {
       <div className="mt-6 text-xs text-slate-400 text-left">
         <p className="mb-1 font-semibold">How to get a Bot Password:</p>
         <ol className="list-decimal pl-4 space-y-1">
-          <li>Go to <a href="https://bahai.works/Special:BotPasswords">Special:BotPasswords</a> on Bahai.works</li>
+          <li>Go to <b>Special:BotPasswords</b> on Bahai.works</li>
           <li>Create a new bot (e.g. named "AnnotationTool")</li>
           <li>Grant it <b>High-volume editing</b> (or basic rights)</li>
           <li>Copy the password generated there.</li>
