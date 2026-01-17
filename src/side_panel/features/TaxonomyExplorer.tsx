@@ -391,7 +391,7 @@ const TaxonomyNode = ({
                                     <>
                                         <ExclamationTriangleIcon className="w-3 h-3 text-red-500 mr-1" />
                                         <span className="truncate border-b-2 border-red-400 border-dotted" title="Broken Link - Click to Repair">
-                                            {u.text_content.substring(0, 30)}...
+                                            {u.text_content.substring(0, 60)}...
                                         </span>
                                     </>
                                 ) : (
