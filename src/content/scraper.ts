@@ -27,7 +27,6 @@ function getPathHash(path: string): number {
 function getPageAuthor(): string {
     // 1. Bahai.org Specific Extraction
     if (CURRENT_SITE.code === 'lib') {
-        // URL Structure: /library/authoritative-texts/AUTHOR-SLUG/book-name...
         const path = window.location.pathname;
         return getCanonicalAuthor(path);
     }
@@ -36,14 +35,12 @@ function getPageAuthor(): string {
     const headerEl = document.getElementById('header_author_text');
     if (headerEl) {
         const text = (headerEl.textContent || "").trim();
-        // Check if the header text contains one of our canonical keys
         if (text.includes('Báb')) return "The Báb";
         if (text.includes('Bahá’u’lláh')) return "Bahá’u’lláh";
         if (text.includes('Abdu’l-Bahá')) return "‘Abdu’l-Bahá";
         if (text.includes('Shoghi Effendi')) return "Shoghi Effendi";
         if (text.includes('Universal House of Justice')) return "Universal House of Justice";
         
-        // Fallback for non-canonical authors on the wiki (e.g. historical figures)
         const fn = headerEl.querySelector('.fn');
         return (fn?.textContent || text).trim();
     }
@@ -78,18 +75,12 @@ export const getPageMetadata = (): PageMetadata => {
         if (revJsonMatch) revId = parseInt(revJsonMatch[1]);
         else if (revVarMatch) revId = parseInt(revVarMatch[1]);
     } else {
-        // This matches your DB structure where source_page_id = Anchor ID
-        const urlHash = window.location.hash.replace('#', '');
-        if (urlHash && /^\d+$/.test(urlHash)) {
-            pageId = parseInt(urlHash, 10);
-            console.log(`[Scraper] Using Hash ID: ${pageId}`);
-        } else {
-            // Fallback to path hash (likely won't match granular articles, but keeps ID stable)
-            pageId = getPathHash(window.location.pathname);
-        }
+        // [UPDATE] For Bahai.org ('lib'), we now ALWAYS use the Path Hash as the ID.
+        // We do NOT use the anchor hash here, because that is now stored in connected_anchors.
+        // This prevents the "Leading Zero" bug in the DB 'source_page_id' column.
+        pageId = getPathHash(window.location.pathname);
     }
 
-    // [UPDATE] Split by " - " OR " | " to handle Bahai.org titles correctly
     const titleParts = document.title.split(/ - | \| /);
 
     return {
