@@ -11,13 +11,13 @@ export const Label = () => {
   
   const [repairTarget, setRepairTarget] = useState<LogicalUnit | null>(null);
   
-  // [CHANGE] State now holds all fields needed for navigation
   const [pageUnits, setPageUnits] = useState<{
       id: number, 
       text_content: string, 
       unit_type: string,
       source_code: string,
       source_page_id: number,
+      title?: string,
       connected_anchors?: number[]
   }[]>([]);
 
@@ -27,7 +27,6 @@ export const Label = () => {
     }
   }, [selectedUnit]);
 
-  // Fetch list of units from cache
   useEffect(() => {
     const fetchStats = async () => {
         if (!currentSelection && !selectedUnit) {
@@ -49,13 +48,14 @@ export const Label = () => {
     fetchStats();
   }, [currentSelection, selectedUnit]);
 
-  // [FIX] Pass connected_anchors and source info for Service Worker routing
+  // [FIX] Pass title to Service Worker
   const handleUnitJump = (unit: typeof pageUnits[0]) => {
       chrome.runtime.sendMessage({ 
           type: 'NAVIGATE_TO_UNIT', 
           unit_id: unit.id,
           source_code: unit.source_code,
           source_page_id: unit.source_page_id,
+          title: unit.title,
           connected_anchors: unit.connected_anchors
       });
   };
