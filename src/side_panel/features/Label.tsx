@@ -9,44 +9,43 @@ export const Label = () => {
   const { currentSelection, selectedUnit, clearSelection } = useSelection();
   const { get } = useApi();
   
-  // State to hold a unit that is being repaired.
-  // This persists even if the user selects new text (which clears selectedUnit).
   const [repairTarget, setRepairTarget] = useState<LogicalUnit | null>(null);
   
-  // Stats
-  const [pageStats, setPageStats] = useState<{count: number, snippet: string} | null>(null);
+  // [CHANGE] Store array of units instead of single stat object
+  const [pageUnits, setPageUnits] = useState<{id: number, text_content: string, unit_type: string}[]>([]);
 
-  // Sync selectedUnit to repairTarget when entering edit mode normally
-  // But DO NOT clear repairTarget if selectedUnit becomes null (which happens when selecting text)
   useEffect(() => {
     if (selectedUnit) {
-        setRepairTarget(null); // Reset repair state if we click a new unit normally
+        setRepairTarget(null); 
     }
   }, [selectedUnit]);
 
-  // FETCH STATS
+  // [CHANGE] Fetch list of units from cache
   useEffect(() => {
     const fetchStats = async () => {
         if (!currentSelection && !selectedUnit) {
             try {
                 const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
                 if (tabs[0]?.id) {
-                    // Send message to highlighter.ts
                     const res = await chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_CACHED_STATS' }).catch(() => null);
-                    if (res) {
-                         setPageStats({
-                             count: res.count || 0,
-                             snippet: res.snippet || ""
-                         });
+                    if (res && res.units) {
+                         setPageUnits(res.units);
+                    } else {
+                         setPageUnits([]);
                     }
                 }
             } catch (e) { 
-                // Ignore errors (e.g. content script not ready)
+                setPageUnits([]);
             }
         }
     };
     fetchStats();
   }, [currentSelection, selectedUnit]);
+
+  // [NEW] Navigation Handler
+  const handleUnitJump = (unitId: number) => {
+      chrome.runtime.sendMessage({ type: 'NAVIGATE_TO_UNIT', unit_id: unitId });
+  };
 
   const handleSuccess = () => {
       clearSelection();
@@ -119,7 +118,6 @@ export const Label = () => {
   // 4. Idle State
   return (
     <div className="p-4 space-y-6 h-full flex flex-col">
-        {/* [FIX] Header matches Q&A exactly (No bg-white wrapper, correct markup) */}
         <div className="flex justify-between items-center">
             <div className="flex items-center gap-2 group relative">
                 <h2 className="text-lg font-bold text-slate-800">
@@ -136,28 +134,36 @@ export const Label = () => {
             </div>
         </div>
 
-        {/* Stats Section */}
-        {pageStats && pageStats.count > 0 && (
+        {/* [CHANGE] Render List of Units */}
+        {pageUnits.length > 0 ? (
             <div className="bg-blue-50 rounded border border-blue-100 p-3 animate-in fade-in duration-500">
-                <p className="text-xs font-bold text-blue-800 mb-1 uppercase tracking-wide">
-                    This page contains: {pageStats.count} Unit{pageStats.count !== 1 ? 's' : ''}
+                <p className="text-xs font-bold text-blue-800 mb-2 uppercase tracking-wide border-b border-blue-200 pb-1">
+                    This page contains: {pageUnits.length} Unit{pageUnits.length !== 1 ? 's' : ''}
                 </p>
-                <div className="flex items-start gap-2 opacity-75">
-                        <DocumentTextIcon className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
-                        <span className="text-xs text-blue-900 font-serif italic line-clamp-2">
-                            "{pageStats.snippet}"
-                        </span>
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-blue-200">
+                    {pageUnits.map(unit => (
+                        <button 
+                            key={unit.id}
+                            onClick={() => handleUnitJump(unit.id)}
+                            className="w-full text-left bg-white p-2 rounded border border-blue-100 shadow-sm hover:shadow-md hover:border-blue-300 transition-all group flex items-start gap-2"
+                        >
+                            <DocumentTextIcon className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0 group-hover:text-blue-600" />
+                            <span className="text-xs text-slate-600 font-serif italic line-clamp-2 group-hover:text-slate-800">
+                                "{unit.text_content}"
+                            </span>
+                        </button>
+                    ))}
                 </div>
             </div>
+        ) : (
+            /* Placeholder Content only shows if no units */
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-400">
+                <PencilSquareIcon className="h-12 w-12 mb-2 opacity-20" /> 
+                <p className="text-sm max-w-xs">
+                    Select text on the page to begin labeling a new logical unit.
+                </p>
+            </div>
         )}
-        
-        {/* Placeholder Content */}
-        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-400">
-            <PencilSquareIcon className="h-12 w-12 mb-2 opacity-20" /> 
-            <p className="text-sm max-w-xs">
-                Select text on the page to begin labeling a new logical unit.
-            </p>
-        </div>
     </div>
   );
 };
