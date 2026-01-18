@@ -33,9 +33,10 @@ export const initHighlighter = async () => {
                 id: u.id,
                 text_content: u.text_content.replace(/\s+/g, ' ').substring(0, 80) + "...",
                 unit_type: u.unit_type,
+                author: u.author,
                 source_code: u.source_code,
                 source_page_id: u.source_page_id,
-                title: (u as any).title, 
+                title: (u as any).title,
                 connected_anchors: u.connected_anchors || []
             }));
             
@@ -510,31 +511,35 @@ const renderHighlights = () => {
 const attemptScroll = (attempts = 10) => {
     if (!pendingScrollId) return;
 
-    const el = document.querySelector(`.rag-highlight[data-unit-id="${pendingScrollId}"]`);
+    // [FIX] Select ALL fragments for this unit, not just the first one
+    const elements = document.querySelectorAll(`.rag-highlight[data-unit-id="${pendingScrollId}"]`);
     
-    if (el) {
-        // FOUND IT: Scroll and Flash
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (elements.length > 0) {
+        // Scroll to the first element
+        elements[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
         
-        const originalTransition = (el as HTMLElement).style.transition;
-        const originalBg = (el as HTMLElement).style.backgroundColor;
-        
-        (el as HTMLElement).style.transition = "background-color 0.5s ease";
-        (el as HTMLElement).style.backgroundColor = "rgba(255, 235, 59, 0.8)"; // Bright Yellow
+        // Flash ALL elements
+        elements.forEach(node => {
+            const el = node as HTMLElement;
+            const originalTransition = el.style.transition;
+            const originalBg = el.style.backgroundColor;
+            
+            el.style.transition = "background-color 0.5s ease";
+            el.style.backgroundColor = "rgba(255, 235, 59, 0.8)"; // Bright Yellow
 
-        setTimeout(() => {
-            (el as HTMLElement).style.backgroundColor = originalBg;
             setTimeout(() => {
-                (el as HTMLElement).style.transition = originalTransition;
-            }, 500);
-        }, 1500);
+                el.style.backgroundColor = originalBg;
+                setTimeout(() => {
+                    el.style.transition = originalTransition;
+                }, 500);
+            }, 1500);
+        });
 
         pendingScrollId = null; // Clear queue
     } else if (attempts > 0) {
         // NOT FOUND YET: Retry in 250ms
         setTimeout(() => attemptScroll(attempts - 1), 250);
     } else {
-        // ONLY log if we have run out of attempts
         console.warn(`Unit ${pendingScrollId} not found in DOM after retries.`);
         pendingScrollId = null;
     }
