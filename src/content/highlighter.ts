@@ -29,10 +29,12 @@ export const initHighlighter = async () => {
         }
         // Return stats from the already loaded cache
         if (request.type === 'GET_CACHED_STATS') {
-            const count = cachedUnits.length;
-            // Get first unit's text for the snippet, if available
-            const snippet = count > 0 ? cachedUnits[0].text_content.substring(0, 60) + "..." : "";
-            sendResponse({ count, snippet });
+            const units = cachedUnits.map(u => ({
+                id: u.id,
+                text_content: u.text_content.replace(/\s+/g, ' ').substring(0, 100) + "...",
+                unit_type: u.unit_type
+            }));
+            sendResponse({ units });
             return true;
         }
         if (request.type === 'UPDATE_HIGHLIGHTS' && Array.isArray(request.units)) {
