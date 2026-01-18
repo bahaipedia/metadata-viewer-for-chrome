@@ -41,8 +41,12 @@ export const UnitForm: React.FC<Props> = ({
   const isViewMode = !!existingUnit;
   const canEdit = existingUnit?.can_delete ?? true; 
 
+  // Detect Author from Context
+  const detectedAuthor = !isViewMode && context?.author && context.author !== 'Undefined' ? context.author : null;
+
   const [formData, setFormData] = useState({
-    author: existingUnit?.author || "‘Abdu’l-Bahá",
+    // Use detectedAuthor as default if available
+    author: detectedAuthor || existingUnit?.author || "‘Abdu’l-Bahá",
     unit_type: existingUnit?.unit_type || 'tablet'
   });
 
@@ -190,7 +194,7 @@ export const UnitForm: React.FC<Props> = ({
           className="w-full p-2 text-sm border rounded bg-white disabled:bg-slate-100 disabled:text-slate-500"
           value={formData.author}
           onChange={e => setFormData({...formData, author: e.target.value})}
-          disabled={!canEdit} 
+          disabled={!canEdit || !!detectedAuthor} 
         >
           <option>Bahá’u’lláh</option>
           <option>The Báb</option>
