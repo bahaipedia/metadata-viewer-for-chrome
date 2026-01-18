@@ -23,86 +23,36 @@ export const RelationshipManager = () => {
   const [relType, setRelType] = useState('commentary');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // We use this state to render the list. 
-  // It must match the structure expected by the render loop (nested subject_unit/object_unit).
-  const [pageRelationships, setPageRelationships] = useState<any[]>([]);
+  const [linkUnits, setLinkUnits] = useState<any[]>([]);
   const [currentPageId, setCurrentPageId] = useState<number>(0);
 
   useEffect(() => {
-    const fetchAndHighlight = async () => {
+    const fetchStats = async () => {
+      // 1. Get current tab
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id) return;
 
-      const metadata = await chrome.tabs.sendMessage(tab.id, { type: 'GET_METADATA' }).catch(() => null);
-      
-      if (metadata && metadata.source_code) {
-        setCurrentPageId(metadata.source_page_id);
-
-        const rawRels = await get(`/api/relationships?source_code=${metadata.source_code}&source_page_id=${metadata.source_page_id}`);
+      try {
+        // 2. Ask Page for its Cache (Since you confirmed highlights are working on the page)
+        const res = await chrome.tabs.sendMessage(tab.id, { type: 'GET_CACHED_STATS' }).catch(() => null);
         
-        if (!rawRels || rawRels.length === 0) {
-            setPageRelationships([]);
-            return;
+        if (res && res.units) {
+          // 3. Filter EXCLUSIVELY for Link Subjects/Objects
+          const links = res.units.filter((u: any) => 
+            ['link_subject', 'link_object'].includes(u.unit_type)
+          );
+          setLinkUnits(links);
+        } else {
+          setLinkUnits([]);
         }
-
-        // CRITICAL FIX: Map API Flat Fields -> UI Nested Objects
-        // Your API returns 'subject_text', but your UI code tries to read 'rel.subject_unit.text_content'.
-        // We reconstruct the objects here so the State and the UI match.
-        const processedRels = rawRels.map((r: any) => ({
-            ...r,
-            subject_unit: {
-                id: r.subject_unit_id,
-                text_content: r.subject_text || r.subject_unit?.text_content, // Fallback handles both flat/nested API
-                unit_type: r.subject_type || 'link_subject',
-                source_page_id: r.subject_page_id,
-                author: r.subject_author || 'Unknown',
-                // Ensure these are passed so the "Jump" button knows where to go
-                start_char_index: r.subject_start,
-                end_char_index: r.subject_end,
-                connected_anchors: r.subject_anchors
-            },
-            object_unit: {
-                id: r.object_unit_id,
-                text_content: r.object_text || r.object_unit?.text_content,
-                unit_type: r.object_type || 'link_object',
-                source_page_id: r.object_page_id,
-                author: r.object_author || 'Unknown',
-                start_char_index: r.object_start,
-                end_char_index: r.object_end,
-                connected_anchors: r.object_anchors
-            }
-        }));
-
-        setPageRelationships(processedRels);
-
-        // Generate Highlights (using the same mapped data)
-        const unitsToHighlight = processedRels.flatMap((r: any) => {
-             const units = [];
-             
-             if (r.subject_unit.source_page_id === metadata.source_page_id) {
-                 units.push({ 
-                    ...r.subject_unit,
-                    unit_type: 'link_subject',
-                    relationship_type: r.relationship_type 
-                 });
-             }
-
-             if (r.object_unit.source_page_id === metadata.source_page_id) {
-                 units.push({ 
-                    ...r.object_unit, 
-                    unit_type: 'link_object',
-                    relationship_type: r.relationship_type
-                 });
-             }
-             return units;
-        });
-
-        chrome.tabs.sendMessage(tab.id, { type: 'UPDATE_HIGHLIGHTS', units: unitsToHighlight });
+      } catch (e) {
+        console.error("Failed to fetch page stats", e);
+        setLinkUnits([]);
       }
     };
 
-    fetchAndHighlight();
-  }, [selectedUnit]); 
+    fetchStats();
+  }, [selectedUnit]); // Re-run when selection changes
 
   // --- STANDARD HELPERS (State Persistence, etc.) ---
   useEffect(() => {
@@ -457,65 +407,39 @@ export const RelationshipManager = () => {
             </div>
         </div>
 
-        {pageRelationships.length > 0 ? (
+        {linkUnits.length > 0 ? (
             <div className="bg-slate-50 rounded border border-slate-200 p-3 flex flex-col h-full overflow-hidden">
                 <p className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide border-b border-slate-200 pb-1 flex-shrink-0">
-                    On this page: {pageRelationships.length} Connection{pageRelationships.length !== 1 ? 's' : ''}
+                    Active Links: {linkUnits.length}
                 </p>
                 
-                <div className="space-y-4 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-300 flex-1 min-h-0">
-                    {pageRelationships.map(rel => {
-                        const isSubjectHere = rel.subject_unit.source_page_id === currentPageId;
-                        const isObjectHere = rel.object_unit.source_page_id === currentPageId;
-
-                        return (
-                            <div key={rel.id} className="flex flex-col gap-1">
-                                {/* Subject (Blue) */}
-                                <button
-                                    onClick={() => isSubjectHere && handleJumpToUnit(rel.subject_unit)}
-                                    disabled={!isSubjectHere}
-                                    className={`w-full text-left p-2 rounded border shadow-sm transition-all group flex flex-col gap-1 relative ${
-                                        isSubjectHere ? 'bg-blue-50 border-blue-200 hover:border-blue-400 cursor-pointer' : 'bg-slate-50 border-slate-100 opacity-60 cursor-default'
-                                    }`}
-                                >
-                                    <div className="flex items-start gap-2">
-                                        <span className="text-[10px] font-bold text-blue-600 uppercase bg-blue-100 px-1.5 rounded">Subject</span>
-                                        {!isSubjectHere && <span className="text-[10px] text-slate-400">(External Page)</span>}
-                                    </div>
-                                    <span className="text-xs text-slate-700 font-serif italic line-clamp-2">
-                                        "{rel.subject_unit?.text_content || 'Unknown Content'}"
-                                    </span>
-                                </button>
-
-                                {/* Connector */}
-                                <div className="flex items-center justify-center -my-2 z-10">
-                                    <div className="bg-white border border-slate-200 rounded-full p-1 shadow-sm">
-                                        <ArrowsRightLeftIcon className="w-3 h-3 text-slate-400" />
-                                    </div>
-                                    <span className="text-[10px] text-slate-400 uppercase font-bold ml-2 bg-white px-1">
-                                        {rel.relationship_type}
-                                    </span>
-                                </div>
-
-                                {/* Object (Green) */}
-                                <button
-                                    onClick={() => isObjectHere && handleJumpToUnit(rel.object_unit)}
-                                    disabled={!isObjectHere}
-                                    className={`w-full text-left p-2 rounded border shadow-sm transition-all group flex flex-col gap-1 relative ${
-                                        isObjectHere ? 'bg-green-50 border-green-200 hover:border-green-400 cursor-pointer' : 'bg-slate-50 border-slate-100 opacity-60 cursor-default'
-                                    }`}
-                                >
-                                    <div className="flex items-start gap-2">
-                                        <span className="text-[10px] font-bold text-green-700 uppercase bg-green-100 px-1.5 rounded">Object</span>
-                                        {!isObjectHere && <span className="text-[10px] text-slate-400">(External Page)</span>}
-                                    </div>
-                                    <span className="text-xs text-slate-700 font-serif italic line-clamp-2">
-                                        "{rel.object_unit?.text_content || 'Unknown Content'}"
-                                    </span>
-                                </button>
+                <div className="space-y-2 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-300 flex-1 min-h-0">
+                    {linkUnits.map(unit => (
+                        <button 
+                            key={unit.id}
+                            onClick={() => handleJumpToUnit(unit)}
+                            className={`w-full text-left p-2 rounded border shadow-sm transition-all group flex flex-col gap-1 ${
+                                unit.unit_type === 'link_subject' 
+                                ? 'bg-blue-50 border-blue-200 hover:border-blue-400' 
+                                : 'bg-green-50 border-green-200 hover:border-green-400'
+                            }`}
+                        >
+                            <div className="flex items-start gap-2">
+                                <span className={`text-[10px] font-bold uppercase px-1.5 rounded ${
+                                    unit.unit_type === 'link_subject' ? 'text-blue-600 bg-blue-100' : 'text-green-700 bg-green-100'
+                                }`}>
+                                    {unit.unit_type === 'link_subject' ? 'Subject' : 'Object'}
+                                </span>
+                                {/* Display Relationship Type if available in cache, otherwise generic */}
+                                <span className="text-[10px] text-slate-400 uppercase font-bold bg-white px-1">
+                                    {unit.relationship_type || 'Linked'}
+                                </span>
                             </div>
-                        );
-                    })}
+                            <span className="text-xs text-slate-700 font-serif italic line-clamp-2">
+                                "{unit.text_content}"
+                            </span>
+                        </button>
+                    ))}
                 </div>
             </div>
         ) : (
