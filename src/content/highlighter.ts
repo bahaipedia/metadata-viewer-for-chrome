@@ -29,11 +29,18 @@ export const initHighlighter = async () => {
         }
         // Return stats from the already loaded cache
         if (request.type === 'GET_CACHED_STATS') {
+            const meta = getPageMetadata();
+            
             const units = cachedUnits.map(u => ({
                 id: u.id,
-                text_content: u.text_content.replace(/\s+/g, ' ').substring(0, 100) + "...",
-                unit_type: u.unit_type
+                text_content: u.text_content.replace(/\s+/g, ' ').substring(0, 80) + "...",
+                unit_type: u.unit_type,
+                // Critical: Use unit's data, fallback to page metadata if missing
+                source_code: u.source_code || meta.source_code,
+                source_page_id: u.source_page_id || meta.source_page_id,
+                connected_anchors: u.connected_anchors || []
             }));
+            
             sendResponse({ units });
             return true;
         }
