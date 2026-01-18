@@ -93,16 +93,36 @@ export const RelationshipManager = () => {
     if (key === 'subject') setSubject(value);
     if (key === 'object') setObject(value);
     if (key === 'relType') setRelType(value);
-    if (key === 'subjectAuthor') setSubjectAuthor(value);
-    if (key === 'objectAuthor') setObjectAuthor(value);
+    
+    // [FIX] Auto-set Author if detecting new selection
+    let newSubjectAuthor = subjectAuthor;
+    let newObjectAuthor = objectAuthor;
+
+    if (key === 'subject' && value?.type === 'new' && value.context?.author && value.context.author !== 'Undefined') {
+        setSubjectAuthor(value.context.author);
+        newSubjectAuthor = value.context.author;
+    } else if (key === 'subjectAuthor') {
+        setSubjectAuthor(value);
+        newSubjectAuthor = value;
+    }
+
+    if (key === 'object' && value?.type === 'new' && value.context?.author && value.context.author !== 'Undefined') {
+        setObjectAuthor(value.context.author);
+        newObjectAuthor = value.context.author;
+    } else if (key === 'objectAuthor') {
+        setObjectAuthor(value);
+        newObjectAuthor = value;
+    }
+
+    if (key === 'relType') setRelType(value);
 
     // Persistence Calculation
     const newState = {
       subject: key === 'subject' ? value : subject,
       object: key === 'object' ? value : object,
       relType: key === 'relType' ? value : relType,
-      subjectAuthor: key === 'subjectAuthor' ? value : subjectAuthor,
-      objectAuthor: key === 'objectAuthor' ? value : objectAuthor,
+      subjectAuthor: newSubjectAuthor,
+      objectAuthor: newObjectAuthor,
     };
 
     chrome.storage.local.set({ linkerState: newState });
@@ -131,9 +151,11 @@ export const RelationshipManager = () => {
     }
   };
 
-  // --- NEW: View Mode for Existing Links ---
-  if (selectedUnit && (selectedUnit.unit_type === 'link_subject' || selectedUnit.unit_type === 'link_object')) {
-    return (
+  // [FIX] Helper to check if author is detected
+  const isSubjectAuto = subject?.type === 'new' && subject.context?.author && subject.context.author !== 'Undefined';
+  const isObjectAuto = object?.type === 'new' && object.context?.author && object.context.author !== 'Undefined';
+
+  return (
       <div className="p-4 space-y-4">
          <h2 className="text-lg font-bold text-slate-800">Manage Link</h2>
          <div className="p-4 bg-slate-100 rounded border border-slate-300">
@@ -275,7 +297,8 @@ export const RelationshipManager = () => {
             {subject.type === 'new' ? (
                <AuthorSelect 
                  value={subjectAuthor} 
-                 onChange={(val) => updateState('subjectAuthor', val)} 
+                 onChange={(val) => updateState('subjectAuthor', val)}
+                 disabled={isSubjectAuto}
                />
             ) : (
                <div className="text-xs text-slate-500">
@@ -325,7 +348,8 @@ export const RelationshipManager = () => {
             {object.type === 'new' ? (
                <AuthorSelect 
                  value={objectAuthor} 
-                 onChange={(val) => updateState('objectAuthor', val)} 
+                 onChange={(val) => updateState('objectAuthor', val)}
+                 disabled={isObjectAuto}
                />
             ) : (
                <div className="text-xs text-slate-500">
