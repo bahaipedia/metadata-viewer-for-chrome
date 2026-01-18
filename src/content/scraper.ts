@@ -7,7 +7,7 @@ function getCanonicalAuthor(urlSlug: string): string {
     if (urlSlug.includes('bahaullah')) return "Bahá’u’lláh";
     if (urlSlug.includes('abdul-baha')) return "‘Abdu’l-Bahá";
     if (urlSlug.includes('shoghi-effendi')) return "Shoghi Effendi";
-    if (urlSlug.includes('universal-house-justice')) return "Universal House of Justice";
+    if (urlSlug.includes('the-universal-house-of-justice')) return "Universal House of Justice";
     return "Undefined";
 }
 
