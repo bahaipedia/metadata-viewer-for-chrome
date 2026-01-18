@@ -36,9 +36,11 @@ export const Label = () => {
                 if (tabs[0]?.id) {
                     const res = await chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_CACHED_STATS' }).catch(() => null);
                     if (res && res.units) {
-                         setPageUnits(res.units);
+                          setPageUnits(res.units.filter((u: any) => 
+                              !['user_highlight', 'canonical_answer', 'link_subject', 'link_object'].includes(u.unit_type)
+                          ));
                     } else {
-                         setPageUnits([]);
+                          setPageUnits([]);
                     }
                 }
             } catch (e) { 
