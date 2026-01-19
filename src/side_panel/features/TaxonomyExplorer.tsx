@@ -31,7 +31,6 @@ interface Props {
     isSelectionMode: boolean;
     isEditMode: boolean;
     onTreeChange: (changes: {id: number, parent_id: number | null}[]) => void;
-    onDeleteTag: (tag: DefinedTag, hasChildren: boolean) => void;
     onEditTag: (tag: DefinedTag) => void;
     onUnitClick: (unit: LogicalUnit, fromTree?: boolean) => void;
     onCreateTag: (label: string) => void;
@@ -40,7 +39,7 @@ interface Props {
 export const TaxonomyExplorer: React.FC<Props> = ({ 
     filter, viewMode, revealUnitId, refreshKey, 
     onTagSelect, isSelectionMode, isEditMode, onTreeChange, 
-    onDeleteTag, onEditTag, onUnitClick, onCreateTag
+    onEditTag, onUnitClick, onCreateTag
 }) => {
   const { get } = useApi();
   const [tree, setTree] = useState<TreeNode[]>([]);
@@ -206,7 +205,6 @@ export const TaxonomyExplorer: React.FC<Props> = ({
                      key={node.id} 
                      node={node} 
                      isEditMode={isEditMode}
-                     onDeleteTag={onDeleteTag}
                      onEditTag={onEditTag}
                      highlightUnitId={revealUnitId}
                      refreshKey={refreshKey}
@@ -251,7 +249,7 @@ const RootDropZone = () => {
 };
 
 const TaxonomyNode = ({ 
-    node, isEditMode, onDeleteTag, onEditTag, highlightUnitId, refreshKey, onTagSelect, isSelectionMode, isExpanded, onToggleExpand, onUnitClick
+    node, isEditMode, onEditTag, highlightUnitId, refreshKey, onTagSelect, isSelectionMode, isExpanded, onToggleExpand, onUnitClick
 }: any) => {
     const { get } = useApi();
     const [units, setUnits] = useState<LogicalUnit[]>([]);
@@ -345,7 +343,6 @@ const TaxonomyNode = ({
                             key={child.id} 
                             node={child} 
                             isEditMode={isEditMode} 
-                            onDeleteTag={onDeleteTag}
                             onEditTag={onEditTag} 
                             highlightUnitId={highlightUnitId}
                             refreshKey={refreshKey}
