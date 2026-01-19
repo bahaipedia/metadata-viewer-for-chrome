@@ -318,8 +318,7 @@ const TaxonomyNode = ({
 
     const renderIcon = () => {
         if (isExpanded) {
-            // [CHANGED] Teal for active focus, Blue for standard
-            return <FolderOpenIcon className={`w-5 h-5 ${isActive ? 'text-teal-600' : 'text-blue-500'}`} />;
+            return <FolderOpenIcon className={`w-5 h-5 ${isActive ? 'text-indigo-600' : 'text-blue-500'}`} />;
         }
         if (node.children && node.children.length > 0) {
             return <DoubleFolderIcon className="w-5 h-5" />;
@@ -337,9 +336,8 @@ const TaxonomyNode = ({
                     flex items-center py-1.5 px-2 rounded cursor-pointer select-none group transition-colors mb-0.5
                     ${isDragging ? 'bg-white ring-2 ring-blue-400 shadow-sm' : ''}
                     
-                    /* [CHANGED] Hover is standard. Active is Teal text. */
                     ${!isDragging && !isActive ? 'hover:bg-slate-100 text-slate-700 hover:text-blue-600' : ''}
-                    ${isActive && !isDragging ? 'text-teal-600 font-medium' : ''}
+                    ${isActive && !isDragging ? 'text-indigo-600 font-medium' : ''}
                 `}
                 onClick={handleNodeClick}
                 title={isEditMode ? "Edit Tag" : "Toggle Folder"}
