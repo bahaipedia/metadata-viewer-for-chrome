@@ -389,24 +389,6 @@ export const Tags = () => {
     }
   };
 
-    const shouldDelete = confirm(`Are you sure you want to delete "${tag.label}"?`);
-    if (!shouldDelete) return;
-
-    const moveUnits = !confirm(
-        `Do you want to DELETE all snippets categorized here?\n\n` + 
-        `OK = Yes, Delete snippets\n` + 
-        `Cancel = No, move snippets to 'Uncategorized'`
-    );
-
-    try {
-        await del(`/api/tags/${tag.id}`, { move_units_to_uncategorized: moveUnits });
-        setRefreshKey(prev => prev + 1);
-        if (editingTag?.id === tag.id) setEditingTag(null);
-    } catch (e: any) {
-        alert(e.message || "Could not delete tag");
-    }
-  };
-
   const handleTagClickFromTree = (tag: DefinedTag) => {
     if (isEditorVisible && !editingTag) { 
         if (!selectedTags.some(t => t.id === tag.id)) {
