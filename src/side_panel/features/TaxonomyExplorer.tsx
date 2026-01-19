@@ -396,9 +396,8 @@ const TaxonomyNode = ({
                                         className={`
                                             flex items-center ml-3 text-xs py-1.5 px-2 cursor-pointer truncate transition-all duration-200 border-l-2
                                             
-                                            /* [CHANGED] Active uses Teal, Inactive uses Slate */
                                             ${isUnitSelected 
-                                                ? 'bg-yellow-50 text-yellow-900 font-semibold border-yellow-400'
+                                                ? 'bg-yellow-100 text-yellow-900 font-semibold border-yellow-400'
                                                 : `border-transparent hover:border-blue-300 hover:bg-white hover:text-blue-700
                                                    ${isActive ? 'text-blue-600' : 'text-slate-500'}`
                                             }
