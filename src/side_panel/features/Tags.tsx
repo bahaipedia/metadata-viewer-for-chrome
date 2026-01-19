@@ -31,20 +31,24 @@ export const Tags = () => {
   // Edit Tree Mode
   const [isEditMode, setIsEditMode] = useState(false);
   const [treeChanges, setTreeChanges] = useState<{id: number, parent_id: number | null}[]>([]);
+  
+  // Helper to accumulate tree changes
   const handleTreeChange = (newChanges: {id: number, parent_id: number | null}[]) => {
     setTreeChanges(prev => {
         const changeMap = new Map(prev.map(c => [c.id, c]));
-
         newChanges.forEach(c => {
             changeMap.set(c.id, c);
         });
-
         return Array.from(changeMap.values());
     });
   };
+
   const parentInputRef = useRef<HTMLInputElement>(null);
   const [parentDropdownPos, setParentDropdownPos] = useState({ bottom: 0, left: 0, width: 0 });
+  
+  // Delete Mode State
   const [isDeleteMode, setIsDeleteMode] = useState(false);
+  const [tagHasUnits, setTagHasUnits] = useState<boolean | null>(null);
   
   // Editor State
   const [editingUnit, setEditingUnit] = useState<LogicalUnit | null>(null);
@@ -88,8 +92,6 @@ export const Tags = () => {
         handleUnitClickRef.current(msg.unit);
       }
 
-      // [REMOVED] Double Click logic is gone.
-
       // CASE B: Text Selected
       if (msg.type === 'TEXT_SELECTED') {
           // Check Refs instead of state variables
@@ -124,13 +126,25 @@ export const Tags = () => {
 
   // 2. Handle Create Mode (Reset when new selection made)
   useEffect(() => {
-    // [FIX] Do NOT reset if we are in Repair Mode!
     if (currentSelection && !forceRepairMode && !editingUnit?.broken_index) {
       setEditingUnit(null); 
       setEditingTag(null);
       setSelectedTags([]); 
     }
   }, [currentSelection, forceRepairMode, editingUnit]);
+
+  // 3. Check for highlights when entering Delete Mode
+  useEffect(() => {
+    if (isDeleteMode && editingTag) {
+        setTagHasUnits(null); // Reset to loading state
+        // We reuse the existing GET endpoint to check length
+        get(`/api/units?tag_id=${editingTag.id}`)
+            .then((units: LogicalUnit[]) => {
+                setTagHasUnits(units.length > 0);
+            })
+            .catch(() => setTagHasUnits(false)); // Fail safe
+    }
+  }, [isDeleteMode, editingTag]);
 
   // Helper
   const triggerRefresh = () => {
@@ -215,7 +229,7 @@ export const Tags = () => {
     setIsSaving(true);
 
     try {
-        // SCENARIO A: Simple Tag Update (No text changes, not broken)
+        // SCENARIO A: Simple Tag Update
         if (!editingUnit.broken_index && !forceRepairMode && !repairSelection) {
              await put(`/api/units/${editingUnit.id}/tags`, { 
                 tags: selectedTags.map(t => t.id) 
@@ -226,14 +240,13 @@ export const Tags = () => {
              return;
         }
 
-        // SCENARIO B: Repair / Re-Highlight (Delete & Re-Create)
+        // SCENARIO B: Repair / Re-Highlight
         if (!repairSelection) {
             alert("No text selected for repair.");
             setIsSaving(false);
             return;
         }
 
-        // Check root properties first (from SQL), fallback to defaults
         const sourceCode = editingUnit.source_code || 'bw';
         const sourcePageId = editingUnit.source_page_id || 0;
         const unitTitle = editingUnit.title || "Restored Highlight";
@@ -242,21 +255,15 @@ export const Tags = () => {
             source_code: sourceCode,
             source_page_id: sourcePageId,
             title: unitTitle,
-            
-            // NEW DATA from Repair Selection
             start_char_index: repairSelection.start,
             end_char_index: repairSelection.end,
             text_content: repairSelection.text,
-            
-            // Pass the new connected anchors
             connected_anchors: repairSelection.connected_anchors || [],
-
             author: author,
             unit_type: editingUnit.unit_type,
             tags: selectedTags.map(t => t.id)
         };
 
-        // Execute Swap
         await del(`/api/units/${editingUnit.id}`);
         await post('/api/contribute/unit', payload);
 
@@ -285,7 +292,7 @@ export const Tags = () => {
     }
   };
 
-  // Search for parents when user types in Modify Pane
+  // Search for parents
   useEffect(() => {
     if (!editingTag || !parentSearchQuery) {
         setParentSuggestions([]);
@@ -293,22 +300,20 @@ export const Tags = () => {
     }
     const timer = setTimeout(async () => {
         try {
-            // Re-use existing tag search API
             const results = await get(`/api/tags?search=${encodeURIComponent(parentSearchQuery)}&scope=mine`);
-            // Filter out self to prevent self-parenting
             setParentSuggestions(results.filter((t: any) => t.id !== editingTag.id));
         } catch (e) { console.error(e); }
     }, 250);
     return () => clearTimeout(timer);
   }, [parentSearchQuery, editingTag]);
 
-  // Quick Create from Tree Filter
+  // Quick Create
   const handleQuickCreate = async (label: string) => {
     if (!label.trim()) return;
     setIsSaving(true);
     try {
         await post('/api/tags', { label: label, is_official: 0 });
-        setFilterText(''); // Clear filter to show new tag
+        setFilterText(''); 
         triggerRefresh();
     } catch (e) {
         alert("Failed to create tag.");
@@ -321,7 +326,6 @@ export const Tags = () => {
       if (parentSearchQuery && parentInputRef.current && parentSuggestions.length > 0) {
           const rect = parentInputRef.current.getBoundingClientRect();
           setParentDropdownPos({
-              // Matches the bottom of the screen to the top of the input (grows upwards)
               bottom: window.innerHeight - rect.top, 
               left: rect.left,
               width: rect.width
@@ -329,24 +333,20 @@ export const Tags = () => {
       }
   }, [parentSearchQuery, parentSuggestions]);
 
-  // Combined Rename + Move Logic
+  // Modify Tag Logic
   const handleModifyTag = async () => {
       if (!editingTag || !editingTag.label.trim()) return;
       setIsSaving(true);
       try {
-          // 1. Update Label
           await put(`/api/tags/${editingTag.id}`, { label: editingTag.label });
-
-          // 2. Update Parent (if selected)
           if (selectedParent) {
               await put('/api/tags/hierarchy', { 
                   updates: [{ id: editingTag.id, parent_id: selectedParent.id }] 
               });
           }
-
           setEditingTag(null);
-          setSelectedParent(null); // Reset
-          setParentSearchQuery(''); // Reset
+          setSelectedParent(null);
+          setParentSearchQuery('');
           setRefreshKey(prev => prev + 1);
       } catch (e: any) {
           alert(e.message || "Failed to modify tag");
@@ -373,6 +373,7 @@ export const Tags = () => {
     }
   };
 
+  // [UPDATED] Delete Logic
   const handleConfirmDelete = async (moveUnitsToUncategorized: boolean) => {
     if (!editingTag) return;
 
@@ -402,7 +403,6 @@ export const Tags = () => {
     if (!editingUnit || !repairSelection) return;
     setIsSaving(true);
     
-    // DELETE + POST (Re-create)
     try {
         const payload = {
             source_code: editingUnit.source_code || 'bw',
@@ -416,10 +416,7 @@ export const Tags = () => {
             unit_type: editingUnit.unit_type,
             tags: selectedTags.map(t => t.id)
         };
-
-        // 1. Delete old
         await del(`/api/units/${editingUnit.id}`);
-        // 2. Create new
         await post('/api/contribute/unit', payload);
         
         triggerRefresh();
@@ -433,7 +430,7 @@ export const Tags = () => {
     } finally {
         setIsSaving(false);
     }
-};
+  };
 
   const closeBottomPane = () => {
     clearSelection();
@@ -450,10 +447,9 @@ export const Tags = () => {
   const isEditorVisible = !!currentSelection || !!editingUnit || !!editingTag;
   const isRepairView = !!editingUnit?.broken_index || forceRepairMode;
 
-  // Clear editingTag when exiting edit mode
   const handleCancelEditMode = () => {
       setIsEditMode(false);
-      setEditingTag(null); // <--- FIX ADDED HERE
+      setEditingTag(null);
       setRefreshKey(prev => prev + 1);
       setTreeChanges([]);
       setIsDeleteMode(false);
@@ -575,7 +571,7 @@ export const Tags = () => {
                     </button>
                 )}
 
-                {/* [NEW] Delete Trigger Button (Only show when modifying a tag) */}
+                {/* Delete Trigger Button */}
                 {editingTag && !isDeleteMode && (
                     <button 
                         onClick={() => setIsDeleteMode(true)}
@@ -617,6 +613,7 @@ export const Tags = () => {
               {/* 1. DELETE MODE UI */}
               {isDeleteMode && editingTag ? (
                  <div className="space-y-4">
+                    {/* A: Block if children exist */}
                     {(editingTag as any).children && (editingTag as any).children.length > 0 ? (
                         <div className="text-center p-4">
                             <p className="text-sm text-slate-600 mb-4">
@@ -633,33 +630,61 @@ export const Tags = () => {
                             </button>
                         </div>
                     ) : (
+                        /* B: Logic based on Highlight Count */
                         <div className="space-y-4">
-                             <p className="text-sm text-slate-700">
-                                You are about to delete <strong>"{editingTag.label}"</strong>. 
-                                This cannot be undone.
-                             </p>
-                             
-                             <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">
-                                What should happen to the highlights in this category?
-                             </p>
+                             {tagHasUnits === null ? (
+                                 <div className="text-center p-6 text-slate-400 text-sm">
+                                     Checking category contents...
+                                 </div>
+                             ) : tagHasUnits === true ? (
+                                 /* Case B1: Tag HAS snippets -> Offer Choice */
+                                 <>
+                                     <p className="text-sm text-slate-700">
+                                        You are about to delete <strong>"{editingTag.label}"</strong>. 
+                                        This category contains highlighted snippets.
+                                     </p>
+                                     
+                                     <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                                        What should happen to these highlights?
+                                     </p>
 
-                             <div className="flex flex-col gap-2">
-                                <button 
-                                    onClick={() => handleConfirmDelete(true)} // true = move to uncategorized
-                                    className="flex items-center justify-center gap-2 p-3 bg-blue-50 border border-blue-200 text-blue-700 rounded hover:bg-blue-100 transition-colors text-sm font-semibold"
-                                >
-                                    <FolderIcon className="w-4 h-4" />
-                                    Keep highlights (Move to 'Uncategorized')
-                                </button>
-                                
-                                <button 
-                                    onClick={() => handleConfirmDelete(false)} // false = delete snippets
-                                    className="flex items-center justify-center gap-2 p-3 bg-red-50 border border-red-200 text-red-700 rounded hover:bg-red-100 transition-colors text-sm font-semibold"
-                                >
-                                    <TrashIcon className="w-4 h-4" />
-                                    Delete highlights permanently
-                                </button>
-                             </div>
+                                     <div className="flex flex-col gap-2">
+                                        <button 
+                                            onClick={() => handleConfirmDelete(true)} 
+                                            className="flex items-center justify-center gap-2 p-3 bg-blue-50 border border-blue-200 text-blue-700 rounded hover:bg-blue-100 transition-colors text-sm font-semibold"
+                                        >
+                                            <FolderIcon className="w-4 h-4" />
+                                            Keep highlights (Move to 'Uncategorized')
+                                        </button>
+                                        
+                                        <button 
+                                            onClick={() => handleConfirmDelete(false)} 
+                                            className="flex items-center justify-center gap-2 p-3 bg-red-50 border border-red-200 text-red-700 rounded hover:bg-red-100 transition-colors text-sm font-semibold"
+                                        >
+                                            <TrashIcon className="w-4 h-4" />
+                                            Delete highlights permanently
+                                        </button>
+                                     </div>
+                                 </>
+                             ) : (
+                                 /* Case B2: Tag EMPTY -> Simple Confirm */
+                                 <>
+                                     <p className="text-sm text-slate-700 mb-2">
+                                        Are you sure you want to delete <strong>"{editingTag.label}"</strong>?
+                                     </p>
+                                     <p className="text-xs text-slate-400 mb-4">
+                                        This category is empty.
+                                     </p>
+                                     
+                                     <button 
+                                        onClick={() => handleConfirmDelete(true)} // Param doesn't matter for empty tags
+                                        className="w-full flex items-center justify-center gap-2 p-3 bg-red-500 border border-red-600 text-white rounded hover:bg-red-600 transition-colors text-sm font-semibold"
+                                     >
+                                        <TrashIcon className="w-4 h-4" />
+                                        Yes, Delete
+                                     </button>
+                                 </>
+                             )}
 
                              <div className="pt-2 text-center">
                                 <button 
@@ -673,9 +698,7 @@ export const Tags = () => {
                     )}
                  </div>
               ) : isRepairView ? (
-                 /* 2. Repair Mode UI (Existing Code) ... */
                  <div className="space-y-4">
-                   {/* ... Keep Existing Repair Logic ... */}
                    <div className="text-xs text-slate-500">
                        {editingUnit?.broken_index 
                           ? "This highlight cannot be found. Select text to repair." 
@@ -703,9 +726,7 @@ export const Tags = () => {
                    </div>
                  </div>
               ) : (
-                /* 3. Normal Edit/Create UI */
                 editingTag ? (
-                   // ... Keep Existing Tag Edit Inputs ...
                    <div className="space-y-4">
                      <div>
                        <label className="block text-xs font-bold text-slate-500 mb-1">Tag Name</label>
@@ -768,18 +789,14 @@ export const Tags = () => {
                                ))}
                              </ul>,
                              document.body
-                          )}
-                        </>
-                      )}
-                      <p className="text-[10px] text-slate-400 mt-1">
-                        Selected parent will be applied on save. Leave empty to keep current location.
-                      </p>
-                    </div>
-                  </div>
+                           )}
+                         </>
+                       )}
+                     </div>
+                   </div>
                 ) : (
                   <>
-                    {/* Author Selection */}
-                    {!editingUnit && (
+                     {!editingUnit && (
                       <div className="mb-4">
                         {isAutoDetected ? (
                           <div className="mb-4 text-xs font-bold text-slate-500 uppercase tracking-wide">
@@ -809,7 +826,6 @@ export const Tags = () => {
                         )}
                       </div>
                     )}
-                    
                     <TagInput tags={selectedTags} onChange={setSelectedTags} />
                   </>
                 )
