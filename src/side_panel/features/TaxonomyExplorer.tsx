@@ -190,9 +190,6 @@ export const TaxonomyExplorer: React.FC<Props> = ({
            {/* [CHANGED] Display Tree Logic */}
            {displayTree.length === 0 ? (
                <div className="flex flex-col items-center justify-center p-6 text-center">
-                   <p className="text-sm text-slate-400 mb-3">No tags found.</p>
-                   
-                   {/* [NEW] Create Button appears only when filtering */}
                    {filter.trim().length > 0 && (
                        <button 
                            onClick={() => onCreateTag(filter)}
