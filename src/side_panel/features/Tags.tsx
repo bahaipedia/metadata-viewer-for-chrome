@@ -380,7 +380,7 @@ export const Tags = () => {
     }
   };
 
-  // [UPDATED] Delete Logic const handleConfirmDelete = async (moveUnitsToUncategorized: boolean) => {
+  // Delete Logic
   const handleConfirmTagDelete = async () => {
     if (!editingTag) return;
 
