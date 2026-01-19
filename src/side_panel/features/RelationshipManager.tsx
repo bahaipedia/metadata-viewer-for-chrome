@@ -417,14 +417,14 @@ export const RelationshipManager = () => {
                 <div className="space-y-3 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-300 flex-1 min-h-0">
                     {relationships.map((rel, idx) => (
                         <div key={`${rel.subject_unit_id}-${rel.object_unit_id}-${idx}`} className="flex flex-col rounded border shadow-sm bg-white overflow-hidden">
-                            
+
                             {/* SUBJECT (Top) */}
                             <button 
                                 onClick={() => handleJumpToUnit({
                                     id: rel.subject_unit_id,
                                     source_code: rel.subject_source_code,
                                     source_page_id: rel.subject_page_id,
-                                    title: rel.subject_text, // Use text as title fallback
+                                    title: rel.subject_page_title,
                                     text_content: rel.subject_text
                                 })}
                                 className="w-full text-left p-2 bg-blue-50 hover:bg-blue-100 transition-colors border-b border-blue-100"
@@ -447,7 +447,7 @@ export const RelationshipManager = () => {
                                     id: rel.object_unit_id,
                                     source_code: rel.object_source_code,
                                     source_page_id: rel.object_page_id,
-                                    title: rel.object_text,
+                                    title: rel.object_page_title,
                                     text_content: rel.object_text
                                 })}
                                 className="w-full text-left p-2 bg-green-50 hover:bg-green-100 transition-colors"
@@ -455,7 +455,6 @@ export const RelationshipManager = () => {
                                 <span className="text-[10px] font-bold text-green-700 bg-green-100 px-1.5 rounded uppercase mb-1 inline-block">Object</span>
                                 <p className="text-xs text-slate-700 font-serif italic line-clamp-2">"{rel.object_text}"</p>
                             </button>
-
                         </div>
                     ))}
                 </div>
