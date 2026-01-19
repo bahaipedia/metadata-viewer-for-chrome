@@ -318,7 +318,7 @@ const TaxonomyNode = ({
 
     const renderIcon = () => {
         if (isExpanded) {
-            return <FolderOpenIcon className={`w-5 h-5 ${isActive ? 'text-indigo-600' : 'text-blue-500'}`} />;
+            return <FolderOpenIcon className={`w-5 h-5 ${isActive ? 'text-blue-600' : 'text-blue-500'}`} />;
         }
         if (node.children && node.children.length > 0) {
             return <DoubleFolderIcon className="w-5 h-5" />;
@@ -337,7 +337,7 @@ const TaxonomyNode = ({
                     ${isDragging ? 'bg-white ring-2 ring-blue-400 shadow-sm' : ''}
                     
                     ${!isDragging && !isActive ? 'hover:bg-slate-100 text-slate-700 hover:text-blue-600' : ''}
-                    ${isActive && !isDragging ? 'text-indigo-600 font-medium' : ''}
+                    ${isActive && !isDragging ? 'text-blue-600 font-medium' : ''}
                 `}
                 onClick={handleNodeClick}
                 title={isEditMode ? "Edit Tag" : "Toggle Folder"}
@@ -400,7 +400,7 @@ const TaxonomyNode = ({
                                             ${isUnitSelected 
                                                 ? 'bg-yellow-50 text-yellow-900 font-semibold border-yellow-400'
                                                 : `border-transparent hover:border-blue-300 hover:bg-white hover:text-blue-700
-                                                   ${isActive ? 'text-indigo-600' : 'text-slate-500'}`
+                                                   ${isActive ? 'text-blue-600' : 'text-slate-500'}`
                                             }
                                         `}
                                         onClick={(e) => { e.stopPropagation(); onUnitClick(u, true); }}
