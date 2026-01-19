@@ -336,7 +336,7 @@ const TaxonomyNode = ({
                     flex items-center py-1.5 px-2 rounded cursor-pointer select-none group transition-colors mb-0.5
                     ${isDragging ? 'bg-white ring-2 ring-blue-400 shadow-sm' : ''}
                     
-                    ${!isDragging && !isActive ? 'hover:bg-slate-100 text-slate-700 hover:text-blue-400' : ''}
+                    ${!isDragging && !isActive ? 'text-slate-700 hover:text-blue-400' : ''}
                     ${isActive && !isDragging ? 'text-blue-500 font-medium' : ''}
                 `}
                 onClick={handleNodeClick}
@@ -398,7 +398,7 @@ const TaxonomyNode = ({
                                             
                                             ${isUnitSelected 
                                                 ? 'bg-yellow-50 text-yellow-900 font-semibold border-yellow-400'
-                                                : `border-transparent hover:border-blue-300 hover:bg-white hover:text-blue-700
+                                                : `border-transparent hover:border-blue-300 hover:text-blue-700
                                                    ${isActive ? 'text-blue-400' : 'text-slate-500'}`
                                             }
                                         `}
