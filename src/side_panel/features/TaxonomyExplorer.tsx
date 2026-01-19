@@ -41,7 +41,7 @@ const DoubleFolderIcon = ({ className = "w-4 h-4" }: { className?: string }) => 
         {/* Back folder */}
         <FolderIcon className="absolute -top-0.5 -right-0.5 w-4 h-4 text-blue-300/80" />
         {/* Front folder */}
-        <FolderIcon className="relative w-4 h-4 text-blue-500 z-10" />
+        <FolderIcon className="relative w-4 h-4 text-blue-400 z-10" />
     </div>
 );
 
@@ -202,7 +202,7 @@ export const TaxonomyExplorer: React.FC<Props> = ({
                    {filter.trim().length > 0 && (
                        <button 
                            onClick={() => onCreateTag(filter)}
-                           className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-500 rounded-md text-sm font-semibold hover:bg-blue-100 transition-colors border border-blue-200"
+                           className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-400 rounded-md text-sm font-semibold hover:bg-blue-100 transition-colors border border-blue-200"
                        >
                            <PlusIcon className="w-4 h-4" />
                            Create "{filter}"
@@ -232,7 +232,7 @@ export const TaxonomyExplorer: React.FC<Props> = ({
         
         <DragOverlay>
             {activeDragId ? (
-                <div className="bg-white border border-blue-500 p-2 rounded shadow-lg opacity-90 text-sm font-bold text-blue-800">
+                <div className="bg-white border border-blue-400 p-2 rounded shadow-lg opacity-90 text-sm font-bold text-blue-800">
                     Moving Tag...
                 </div>
             ) : null}
@@ -249,7 +249,7 @@ const RootDropZone = () => {
             className={`
                 mb-2 p-3 border-2 border-dashed rounded-lg text-center text-xs font-bold transition-all duration-200
                 ${isOver 
-                    ? 'border-blue-500 bg-blue-50 text-blue-500 scale-[1.02] shadow-sm' 
+                    ? 'border-blue-400 bg-blue-50 text-blue-400 scale-[1.02] shadow-sm' 
                     : 'border-slate-200 text-slate-400 hover:border-slate-300'
                 }
             `}
@@ -318,7 +318,7 @@ const TaxonomyNode = ({
 
     const renderIcon = () => {
         if (isExpanded) {
-            return <FolderOpenIcon className={`w-5 h-5 ${isActive ? 'text-blue-500' : 'text-blue-500'}`} />;
+            return <FolderOpenIcon className={`w-5 h-5 ${isActive ? 'text-blue-400' : 'text-blue-400'}`} />;
         }
         if (node.children && node.children.length > 0) {
             return <DoubleFolderIcon className="w-5 h-5" />;
@@ -336,8 +336,8 @@ const TaxonomyNode = ({
                     flex items-center py-1.5 px-2 rounded cursor-pointer select-none group transition-colors mb-0.5
                     ${isDragging ? 'bg-white ring-2 ring-blue-400 shadow-sm' : ''}
                     
-                    ${!isDragging && !isActive ? 'hover:bg-slate-100 text-slate-700 hover:text-blue-500' : ''}
-                    ${isActive && !isDragging ? 'text-blue-500 font-medium' : ''}
+                    ${!isDragging && !isActive ? 'hover:bg-slate-100 text-slate-700 hover:text-blue-400' : ''}
+                    ${isActive && !isDragging ? 'text-blue-400 font-medium' : ''}
                 `}
                 onClick={handleNodeClick}
                 title={isEditMode ? "Edit Tag" : "Toggle Folder"}
@@ -399,7 +399,7 @@ const TaxonomyNode = ({
                                             ${isUnitSelected 
                                                 ? 'bg-yellow-50 text-yellow-900 font-semibold border-yellow-400'
                                                 : `border-transparent hover:border-blue-300 hover:bg-white hover:text-blue-700
-                                                   ${isActive ? 'text-blue-500' : 'text-slate-500'}`
+                                                   ${isActive ? 'text-blue-400' : 'text-slate-500'}`
                                             }
                                         `}
                                         onClick={(e) => { e.stopPropagation(); onUnitClick(u, true); }}
