@@ -27,31 +27,46 @@ export const RelationshipManager = () => {
   const [currentPageId, setCurrentPageId] = useState<number>(0);
 
   useEffect(() => {
-    const fetchStats = async () => {
+    let isMounted = true;
+
+    const fetchStats = async (retryCount = 0) => {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id) return;
 
       try {
-        // 1. Get Page Context (We need source_code/id to ask API)
+        // Attempt to get context from the page
         const res = await chrome.tabs.sendMessage(tab.id, { type: 'GET_CACHED_STATS' }).catch(() => null);
         
-        // Ensure we have context. Fallback to extracting from first unit if top-level missing.
+        // 1. Check if we got valid context
         const pageSourceCode = res?.source_code || res?.units?.[0]?.source_code;
         const pageSourcePageId = res?.source_page_id || res?.units?.[0]?.source_page_id;
 
         if (pageSourceCode && pageSourcePageId) {
+            // Success! We have context, now fetch the relationships
             const rels = await get(`/api/relationships?source_code=${pageSourceCode}&source_page_id=${pageSourcePageId}`);
-            setRelationships(rels || []);
-        } else {
+            if (isMounted) setRelationships(rels || []);
+            return; 
+        }
+
+        // 2. Failure Case: Content script wasn't ready or cache was empty
+        // If we haven't hit the limit (3 attempts), wait and try again.
+        if (retryCount < 3 && isMounted) {
+            // console.log(`[Linker] Content not ready, retrying (${retryCount + 1}/3)...`);
+            setTimeout(() => fetchStats(retryCount + 1), 500); 
+        } else if (isMounted) {
+            // Give up after 3 tries (1.5 seconds)
             setRelationships([]);
         }
+
       } catch (e) {
         console.error("Failed to fetch relationships", e);
-        setRelationships([]);
+        if (isMounted) setRelationships([]);
       }
     };
 
     fetchStats();
+
+    return () => { isMounted = false; };
   }, [selectedUnit, refreshTrigger]);
 
   // --- STANDARD HELPERS (State Persistence, etc.) ---
