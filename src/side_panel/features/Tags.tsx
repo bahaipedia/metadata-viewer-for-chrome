@@ -480,16 +480,18 @@ export const Tags = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-50">
+    <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950">
       
       {/* Header */}
-      <div className="p-3 bg-white border-b border-slate-200 shadow-sm z-10 space-y-3">
-        <div className="flex bg-slate-100 p-1 rounded-lg">
+      <div className="p-3 bg-white border-b border-slate-200 shadow-sm z-10 space-y-3 dark:bg-slate-900 dark:border-slate-800">
+        <div className="flex bg-slate-100 p-1 rounded-lg dark:bg-slate-800">
           {/* [CHANGED] Button 1: Taxonomy Tree */}
           <button
             onClick={() => setViewMode('tree')}
             className={`flex-1 flex items-center justify-center py-1.5 text-xs font-semibold rounded-md transition-colors ${
-              viewMode === 'tree' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              viewMode === 'tree' 
+                ? 'bg-white text-blue-600 shadow-sm dark:bg-slate-700 dark:text-blue-400' 
+                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
             }`}
           >
             <FolderIcon className="w-3 h-3 mr-1" />
@@ -500,7 +502,9 @@ export const Tags = () => {
           <button
             onClick={() => setViewMode('flat')}
             className={`flex-1 flex items-center justify-center py-1.5 text-xs font-semibold rounded-md transition-colors ${
-              viewMode === 'flat' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              viewMode === 'flat' 
+                ? 'bg-white text-blue-600 shadow-sm dark:bg-slate-700 dark:text-blue-400' 
+                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
             }`}
           >
             <ListBulletIcon className="w-3 h-3 mr-1" />
@@ -510,11 +514,11 @@ export const Tags = () => {
         
         <div className="flex items-center gap-2">
             <div className="relative flex-1">
-                <MagnifyingGlassIcon className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
+                <MagnifyingGlassIcon className="absolute left-2 top-2.5 h-4 w-4 text-slate-400 dark:text-slate-500" />
                 <input 
                     type="text" 
                     placeholder={viewMode === 'tree' ? "Filter or create taxonomy..." : "Filter tags..."}
-                    className="w-full pl-8 pr-2 py-2 text-sm border rounded bg-slate-50 focus:bg-white focus:ring-1 focus:ring-blue-500 outline-none"
+                    className="w-full pl-8 pr-2 py-2 text-sm border rounded bg-slate-50 focus:bg-white focus:ring-1 focus:ring-blue-500 outline-none dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 dark:focus:bg-slate-950"
                     value={filterText}
                     onChange={(e) => setFilterText(e.target.value)}
                 />
@@ -525,7 +529,7 @@ export const Tags = () => {
                 !isEditMode ? (
                     <button 
                         onClick={() => setIsEditMode(true)} 
-                        className="p-2 text-slate-500 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 border border-slate-200 rounded transition-colors"
+                        className="p-2 text-slate-500 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 border border-slate-200 rounded transition-colors dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 dark:hover:bg-slate-700 dark:hover:text-blue-400"
                         title="Edit Taxonomy Tree"
                     >
                         <PencilSquareIcon className="w-4 h-4" />
@@ -535,14 +539,14 @@ export const Tags = () => {
                         <button 
                             onClick={handleSaveTree} 
                             disabled={isSaving} 
-                            className="p-2 bg-green-100 text-green-700 hover:bg-green-200 border border-green-300 rounded transition-colors"
+                            className="p-2 bg-green-100 text-green-700 hover:bg-green-200 border border-green-300 rounded transition-colors dark:bg-green-900/20 dark:text-green-400 dark:border-green-800 dark:hover:bg-green-900/40"
                             title="Save Hierarchy Changes"
                         >
                             <CheckIcon className="w-4 h-4" />
                         </button>
                         <button 
                             onClick={handleCancelEditMode} 
-                            className="p-2 bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-300 rounded transition-colors"
+                            className="p-2 bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-300 rounded transition-colors dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 dark:hover:bg-slate-700"
                             title="Cancel Editing"
                         >
                             <XMarkIcon className="w-4 h-4" />
