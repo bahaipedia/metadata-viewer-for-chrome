@@ -768,117 +768,117 @@ export const Tags = () => {
                   </div>
               ) : (
                 editingTag ? (
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">Tag Name</label>
-                        <input 
-                          type="text" 
-                          className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none dark:bg-slate-950 dark:border-slate-700 dark:text-slate-200"
-                          value={editingTag.label}
-                          onChange={(e) => setEditingTag({ ...editingTag, label: e.target.value })}
-                          autoFocus
-                        />
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">Tag Name</label>
+                    <input 
+                      type="text" 
+                      className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none dark:bg-slate-950 dark:border-slate-700 dark:text-slate-200"
+                      value={editingTag.label}
+                      onChange={(e) => setEditingTag({ ...editingTag, label: e.target.value })}
+                      autoFocus
+                    />
+                  </div>
+                  <div className="relative">
+                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">Move to Parent (Optional)</label>
+                    {selectedParent ? (
+                      <div className="flex items-center justify-between p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-400">
+                        <div className="flex items-center gap-2">
+                          <FolderIcon className="w-4 h-4 opacity-50"/>
+                          {selectedParent.label}
+                        </div>
+                        <button onClick={() => { setSelectedParent(null); setParentSearchQuery(''); }}>
+                          <XMarkIcon className="w-4 h-4"/>
+                        </button>
                       </div>
-                      <div className="relative">
-                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">Move to Parent (Optional)</label>
-                        {selectedParent ? (
-                          <div className="flex items-center justify-between p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-400">
-                            <div className="flex items-center gap-2">
-                              <FolderIcon className="w-4 h-4 opacity-50"/>
-                              {selectedParent.label}
-                            </div>
-                            <button onClick={() => { setSelectedParent(null); setParentSearchQuery(''); }}>
-                              <XMarkIcon className="w-4 h-4"/>
-                            </button>
-                          </div>
-                        ) : (
-                          <>
-                            <input 
-                              ref={parentInputRef}
-                              type="text" 
-                              className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm dark:bg-slate-950 dark:border-slate-700 dark:text-slate-200"
-                              placeholder="Type to find a parent category..."
-                              value={parentSearchQuery}
-                              onChange={(e) => setParentSearchQuery(e.target.value)}
-                            />
-                            {parentSuggestions.length > 0 && createPortal(
-                              <ul 
-                                className="fixed z-[9999] bg-white border border-slate-200 rounded-lg shadow-2xl ring-1 ring-black/10 overflow-hidden dark:bg-slate-800 dark:border-slate-700"
-                                style={{
+                    ) : (
+                      <>
+                        <input 
+                          ref={parentInputRef}
+                          type="text" 
+                          className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm dark:bg-slate-950 dark:border-slate-700 dark:text-slate-200"
+                          placeholder="Type to find a parent category..."
+                          value={parentSearchQuery}
+                          onChange={(e) => setParentSearchQuery(e.target.value)}
+                        />
+                        {parentSuggestions.length > 0 && createPortal(
+                          <ul 
+                              className="fixed z-[9999] bg-white border border-slate-200 rounded-lg shadow-2xl ring-1 ring-black/10 overflow-hidden dark:bg-slate-900 dark:border-slate-700 dark:ring-white/10"
+                              style={{
                                   left: parentDropdownPos.left,
                                   bottom: parentDropdownPos.bottom,
                                   width: parentDropdownPos.width,
                                   maxHeight: '50vh',
                                   overflowY: 'auto'
+                              }}
+                          >
+                            <li className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500">
+                              Suggested Parents
+                            </li>
+                            {parentSuggestions.map(s => (
+                              <li 
+                                key={s.id} 
+                                className="px-3 py-2.5 text-sm hover:bg-blue-50 cursor-pointer flex items-center gap-2 text-slate-700 border-b border-slate-50 last:border-0 dark:text-slate-300 dark:hover:bg-slate-800 dark:border-slate-800"
+                                onClick={() => {
+                                  setSelectedParent({ id: s.id, label: s.label });
+                                  setParentSuggestions([]);
                                 }}
                               >
-                                <li className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500">
-                                  Suggested Parents
-                                </li>
-                                {parentSuggestions.map(s => (
-                                  <li 
-                                    key={s.id} 
-                                    className="px-3 py-2.5 text-sm hover:bg-blue-50 cursor-pointer flex items-center gap-2 text-slate-700 border-b border-slate-50 last:border-0 dark:text-slate-300 dark:hover:bg-slate-700 dark:border-slate-700"
-                                    onClick={() => {
-                                      setSelectedParent({ id: s.id, label: s.label });
-                                      setParentSuggestions([]);
-                                    }}
-                                  >
-                                    <FolderIcon className="w-4 h-4 text-blue-400 opacity-75"/>
-                                    <span className="truncate">{s.label}</span>
-                                  </li>
-                                ))}
-                              </ul>,
-                              document.body
-                            )}
-                          </>
+                                <FolderIcon className="w-4 h-4 text-blue-400 opacity-75"/>
+                                <span className="truncate">{s.label}</span>
+                              </li>
+                            ))}
+                          </ul>,
+                          document.body
                         )}
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      {!editingUnit && (
-                        <div className="mb-4">
-                          {isAutoDetected ? (
-                            <div className="mb-4 text-xs font-bold text-slate-500 uppercase tracking-wide dark:text-slate-400">
-                              Author: {author}
-                            </div>
-                          ) : (
-                            <div>
-                              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase dark:text-slate-400">Author</label>
-                              {showManualAuthorInput ? (
-                                <div className="relative">
-                                  <input 
-                                    type="text" 
-                                    className="w-full p-2 pl-8 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none dark:bg-slate-950 dark:border-slate-700 dark:text-slate-200" 
-                                    value={author === 'Undefined' ? '' : author} 
-                                    onChange={(e) => setAuthor(e.target.value)} 
-                                    placeholder="Enter Author Name..." 
-                                    autoFocus 
-                                  />
-                                  <UserIcon className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400 dark:text-slate-500" />
-                                  <button onClick={() => { setShowManualAuthorInput(false); setAuthor('Undefined'); }} className="absolute right-2 top-2 text-xs text-blue-600 hover:underline dark:text-blue-400">Cancel</button>
-                                </div>
-                              ) : (
-                                <div className="relative">
-                                  <select 
-                                    className="w-full p-2 pl-8 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none appearance-none bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-slate-200" 
-                                    value={author} 
-                                    onChange={(e) => { if (e.target.value === 'OTHER_MANUAL') { setShowManualAuthorInput(true); setAuthor(''); } else { setAuthor(e.target.value); } }}
-                                  >
-                                    <option value="Undefined" disabled>Select an Author...</option>
-                                    {CANONICAL_AUTHORS.map(name => <option key={name} value={name}>{name}</option>)}
-                                    <option value="OTHER_MANUAL">Other...</option>
-                                  </select>
-                                  <UserIcon className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400 dark:text-slate-500" />
-                                  <ChevronDownIcon className="absolute right-2.5 top-3 w-4 h-4 text-slate-400 pointer-events-none dark:text-slate-500" />
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      <TagInput tags={selectedTags} onChange={setSelectedTags} />
+                      </>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {!editingUnit && (
+                   <div className="mb-4">
+                     {isAutoDetected ? (
+                       <div className="mb-4 text-xs font-bold text-slate-500 uppercase tracking-wide dark:text-slate-400">
+                         Author: {author}
+                       </div>
+                     ) : (
+                       <div>
+                         <label className="block text-xs font-bold text-slate-500 mb-1 uppercase dark:text-slate-400">Author</label>
+                         {showManualAuthorInput ? (
+                           <div className="relative">
+                             <input 
+                                type="text" 
+                                className="w-full p-2 pl-8 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none dark:bg-slate-950 dark:border-slate-700 dark:text-slate-200" 
+                                value={author === 'Undefined' ? '' : author} 
+                                onChange={(e) => setAuthor(e.target.value)} 
+                                placeholder="Enter Author Name..." 
+                                autoFocus 
+                              />
+                             <UserIcon className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400 dark:text-slate-500" />
+                             <button onClick={() => { setShowManualAuthorInput(false); setAuthor('Undefined'); }} className="absolute right-2 top-2 text-xs text-blue-600 hover:underline dark:text-blue-400">Cancel</button>
+                           </div>
+                         ) : (
+                           <div className="relative">
+                             <select 
+                                className="w-full p-2 pl-8 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none appearance-none bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-slate-200" 
+                                value={author} 
+                                onChange={(e) => { if (e.target.value === 'OTHER_MANUAL') { setShowManualAuthorInput(true); setAuthor(''); } else { setAuthor(e.target.value); } }}
+                              >
+                               <option value="Undefined" disabled>Select an Author...</option>
+                               {CANONICAL_AUTHORS.map(name => <option key={name} value={name}>{name}</option>)}
+                               <option value="OTHER_MANUAL">Other...</option>
+                             </select>
+                             <UserIcon className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400 dark:text-slate-500" />
+                             <ChevronDownIcon className="absolute right-2.5 top-3 w-4 h-4 text-slate-400 pointer-events-none dark:text-slate-500" />
+                           </div>
+                         )}
+                       </div>
+                     )}
+                   </div>
+                 )}
+                 <TagInput tags={selectedTags} onChange={setSelectedTags} />
                   </>
                 )
               )}
