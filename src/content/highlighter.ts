@@ -533,13 +533,17 @@ const renderHighlights = () => {
 const attemptScroll = (attempts = 10) => {
     if (!pendingScrollId) return;
 
-    // [FIX] Select ALL fragments for this unit, not just the first one
+    // Select ALL fragments for this unit, not just the first one
     const elements = document.querySelectorAll(`.rag-highlight[data-unit-id="${pendingScrollId}"]`);
     
     if (elements.length > 0) {
         // Scroll to the first element
         elements[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
         
+        // Check Dark Mode for Flash Color
+        const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const flashColor = isDark ? "rgba(250, 204, 21, 0.4)" : "rgba(255, 235, 59, 0.8)";
+
         // Flash ALL elements
         elements.forEach(node => {
             const el = node as HTMLElement;
@@ -547,7 +551,7 @@ const attemptScroll = (attempts = 10) => {
             const originalBg = el.style.backgroundColor;
             
             el.style.transition = "background-color 0.5s ease";
-            el.style.backgroundColor = "rgba(255, 235, 59, 0.8)"; // Bright Yellow
+            el.style.backgroundColor = flashColor; 
 
             setTimeout(() => {
                 el.style.backgroundColor = originalBg;
