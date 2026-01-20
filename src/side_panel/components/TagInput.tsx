@@ -94,8 +94,7 @@ export const TagInput: React.FC<Props> = ({ tags, onChange, disabled }) => {
   // Render the dropdown contents (for Portal)
   const dropdownContent = (
     <ul 
-        // [CHANGED] Increased max-h-48 to max-h-[60vh] to allow much larger lists
-        className="fixed z-[9999] bg-white border border-slate-200 rounded-md shadow-xl max-h-[60vh] overflow-y-auto"
+        className="fixed z-[9999] bg-white border border-slate-200 rounded-md shadow-xl max-h-[60vh] overflow-y-auto dark:bg-slate-900 dark:border-slate-700"
         style={{
             left: dropdownPos.left,
             bottom: dropdownPos.bottom,
@@ -106,9 +105,9 @@ export const TagInput: React.FC<Props> = ({ tags, onChange, disabled }) => {
         <li 
           key={tag.id}
           onClick={() => handleSelect(tag)}
-          className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer text-slate-700 flex items-center"
+          className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer text-slate-700 flex items-center dark:text-slate-300 dark:hover:bg-slate-800"
         >
-          <UserIcon className="w-4 h-4 text-slate-400 mr-2" />
+          <UserIcon className="w-4 h-4 text-slate-400 mr-2 dark:text-slate-500" />
           {tag.label}
         </li>
       ))}
@@ -116,7 +115,7 @@ export const TagInput: React.FC<Props> = ({ tags, onChange, disabled }) => {
       {!suggestions.some(s => s.label.toLowerCase() === query.toLowerCase()) && (
         <li 
           onClick={() => createTag(query)}
-          className="px-3 py-2 text-sm bg-blue-50 text-blue-700 cursor-pointer hover:bg-blue-100 font-semibold flex items-center border-t border-blue-100"
+          className="px-3 py-2 text-sm bg-blue-50 text-blue-700 cursor-pointer hover:bg-blue-100 font-semibold flex items-center border-t border-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40 dark:border-blue-800"
         >
           <PlusIcon className="w-4 h-4 mr-2" />
           Create "{query}"
@@ -127,20 +126,20 @@ export const TagInput: React.FC<Props> = ({ tags, onChange, disabled }) => {
 
   return (
     <div>
-      <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">
+      <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide dark:text-slate-400">
         Tags / Topics
       </label>
       
       {/* Selected Tags Area */}
       <div className="flex flex-wrap gap-2 mb-2">
         {tags.map((tag, idx) => (
-          <span key={tag.id} className="bg-blue-100 text-blue-700 text-xs font-medium px-2 py-1 rounded-md flex items-center shadow-sm">
+          <span key={tag.id} className="bg-blue-100 text-blue-700 text-xs font-medium px-2 py-1 rounded-md flex items-center shadow-sm dark:bg-blue-900/40 dark:text-blue-300">
             <UserIcon className="w-3 h-3 mr-1 opacity-50" />
             {tag.label}
             <button 
               type="button"
               onClick={() => removeTag(idx)}
-              className="ml-2 hover:text-blue-900"
+              className="ml-2 hover:text-blue-900 dark:hover:text-blue-100"
             >
               <XMarkIcon className="w-3 h-3" />
             </button>
@@ -153,7 +152,7 @@ export const TagInput: React.FC<Props> = ({ tags, onChange, disabled }) => {
           <input
             ref={inputRef} 
             type="text"
-            className="w-full p-2 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+            className="w-full p-2 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all dark:bg-slate-950 dark:border-slate-700 dark:text-slate-200 dark:placeholder-slate-500"
             placeholder={disabled ? "Locked" : "Type to search or create..."}
             value={query}
             onChange={e => setQuery(e.target.value)}
