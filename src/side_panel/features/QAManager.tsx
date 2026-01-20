@@ -219,37 +219,37 @@ export const QAManager = () => {
     <div className="p-4 space-y-6">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-2 group relative">
-          <h2 className="text-lg font-bold text-slate-800">
+          <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
             {isEditMode ? "Edit Q&A Pair" : "Q&A Builder"}
           </h2>
           <QuestionMarkCircleIcon className="w-5 h-5 text-slate-400 cursor-help hover:text-slate-600 transition-colors" />
           
           {/* Tooltip */}
-          <div className="absolute left-0 top-full mt-2 hidden group-hover:block w-72 p-3 bg-slate-800 text-white text-xs font-normal rounded-md shadow-xl z-20 leading-relaxed">
+          <div className="absolute left-0 top-full mt-2 hidden group-hover:block w-72 p-3 bg-slate-800 text-white text-xs font-normal rounded-md shadow-xl z-20 leading-relaxed dark:bg-slate-700">
             <p className="font-bold mb-1 border-b border-slate-600 pb-1">How to use this page:</p>
             <p>If you come across an authoritative answer to a specific question use this form to highlight it. Doing so would allow bahai.chat to provide the direct answer instead of trying to generate one.</p>
             {/* Tooltip Arrow */}
-            <div className="absolute bottom-full left-6 border-8 border-transparent border-b-slate-800"></div>
+            <div className="absolute bottom-full left-6 border-8 border-transparent border-b-slate-800 dark:border-b-slate-700"></div>
           </div>
         </div>
       </div>
 
       {/* QUESTION INPUT */}
       <div className="space-y-2">
-        <label className="text-xs font-bold text-slate-500">QUESTION</label>
+        <label className="text-xs font-bold text-slate-500 dark:text-slate-400">QUESTION</label>
         <div className="relative">
             <textarea 
-            className="w-full p-2 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 min-h-[80px]"
+            className="w-full p-2 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 min-h-[80px] dark:bg-slate-950 dark:border-slate-700 dark:text-slate-200"
             placeholder="Type the question here..."
             value={questionText}
             onChange={(e) => setQuestionText(e.target.value)}
             />
             {!isEditMode && !questionText && (
                 <button 
-                    type="button"
+                    type="button" 
                     onClick={handleSetQuestionFromText}
                     disabled={!currentSelection && !selectedUnit}
-                    className="absolute top-2 right-2 text-[10px] bg-slate-100 border border-slate-300 px-2 py-1 rounded hover:bg-slate-200 text-slate-600 disabled:opacity-0 transition-opacity"
+                    className="absolute top-2 right-2 text-[10px] bg-slate-100 border border-slate-300 px-2 py-1 rounded hover:bg-slate-200 text-slate-600 disabled:opacity-0 transition-opacity dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700"
                 >
                     Paste Selection
                 </button>
@@ -259,9 +259,9 @@ export const QAManager = () => {
 
       {/* AUTHOR DROPDOWN */}
       <div>
-        <label className="block text-xs font-semibold text-slate-600 mb-1">ANSWER AUTHOR</label>
+        <label className="block text-xs font-semibold text-slate-600 mb-1 dark:text-slate-400">ANSWER AUTHOR</label>
         <select 
-          className="w-full p-2 text-sm border rounded bg-white disabled:bg-slate-100 disabled:text-slate-500"
+          className="w-full p-2 text-sm border rounded bg-white disabled:bg-slate-100 disabled:text-slate-500 dark:bg-slate-950 dark:border-slate-700 dark:text-slate-200 dark:disabled:bg-slate-900 dark:disabled:text-slate-600"
           value={author}
           onChange={e => setAuthor(e.target.value)}
           disabled={isAutoDetected}
@@ -274,24 +274,24 @@ export const QAManager = () => {
         </select>
       </div>
 
-      <div className="h-px bg-slate-200 my-2"></div>
+      <div className="h-px bg-slate-200 my-2 dark:bg-slate-800"></div>
 
       {/* ANSWER DISPLAY */}
-      <div className={`p-3 rounded border ${answer ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200 border-dashed'}`}>
+      <div className={`p-3 rounded border ${answer ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' : 'bg-slate-50 border-slate-200 border-dashed dark:bg-slate-900 dark:border-slate-700'}`}>
         <div className="flex justify-between items-center mb-2">
-          <span className="text-xs font-bold text-slate-500">ANSWER (Highlight Text)</span>
+          <span className="text-xs font-bold text-slate-500 dark:text-slate-400">ANSWER (Highlight Text)</span>
           {answer && !isEditMode && (
              <button onClick={() => setAnswer(null)} className="text-xs text-red-500 hover:underline">Clear</button>
           )}
         </div>
 
         {answer ? (
-          <p className="text-sm line-clamp-4 italic">"{answer.type === 'existing' ? answer.unit.text_content : answer.text}"</p>
+          <p className="text-sm line-clamp-4 italic dark:text-slate-300">"{answer.type === 'existing' ? answer.unit.text_content : answer.text}"</p>
         ) : (
           <button 
             onClick={handleSetAnswer}
             disabled={!currentSelection && !selectedUnit}
-            className="w-full py-2 text-sm bg-white border border-slate-300 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+            className="w-full py-2 text-sm bg-white border border-slate-300 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700"
           >
             {currentSelection || selectedUnit ? "Set Active Selection as Answer" : "Highlight text to select..."}
           </button>
@@ -299,13 +299,13 @@ export const QAManager = () => {
       </div>
 
       {/* ACTION BUTTONS */}
-      <div className="flex gap-2 pt-2 border-t border-slate-100 mt-4">
+      <div className="flex gap-2 pt-2 border-t border-slate-100 mt-4 dark:border-slate-800">
         
         {/* A. Cancel / Close */}
         <button 
             type="button" 
             onClick={handleCancel} 
-            className={`py-2 text-sm text-slate-600 hover:bg-slate-100 rounded border border-transparent hover:border-slate-300 ${
+            className={`py-2 text-sm text-slate-600 hover:bg-slate-100 rounded border border-transparent hover:border-slate-300 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:border-slate-700 ${
                 isEditMode ? "px-3" : "flex-1"
             }`}
         >
@@ -317,7 +317,7 @@ export const QAManager = () => {
             <button 
                 onClick={handleSubmit}
                 disabled={!questionText || !answer || isSubmitting}
-                className="flex-1 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-slate-300"
+                className="flex-1 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-800"
             >
                 {isSubmitting ? "Processing..." : (isEditMode ? "Update" : "Save Q&A Pair")}
             </button>
@@ -331,7 +331,7 @@ export const QAManager = () => {
                 className={`px-3 py-2 text-sm rounded transition-all duration-200 border ${
                     deleteConfirmOpen 
                         ? 'flex-1 bg-red-600 text-white border-red-700 hover:bg-red-700 font-bold' 
-                        : 'bg-white text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300' 
+                        : 'bg-white text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 dark:bg-transparent dark:text-red-400 dark:border-red-900 dark:hover:bg-red-900/20' 
                 }`}
             >
                 {deleteConfirmOpen ? "Confirm Delete?" : "Delete"}
