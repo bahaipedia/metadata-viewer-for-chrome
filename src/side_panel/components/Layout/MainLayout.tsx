@@ -29,12 +29,12 @@ export const MainLayout = () => {
       : "text-gray-400 hover:text-gray-600";
 
   return (
-    <div className="flex flex-col h-screen bg-slate-50 text-slate-800">
+    <div className="flex flex-col h-screen bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-200">
       <div className="flex-1 overflow-y-auto pb-16">
         <Outlet />
       </div>
 
-      <div className="fixed bottom-0 w-full h-14 bg-white border-t border-slate-200 flex justify-around items-center shadow-lg z-50">
+      <div className="fixed bottom-0 w-full h-14 bg-white border-t border-slate-200 flex justify-around items-center shadow-lg z-50 dark:bg-slate-900 dark:border-slate-800">
 
         <button onClick={() => navigate('/')} className={`flex flex-col items-center p-2 w-full ${getTabClass('/')}`}>
           <TagIcon className="h-6 w-6" />
