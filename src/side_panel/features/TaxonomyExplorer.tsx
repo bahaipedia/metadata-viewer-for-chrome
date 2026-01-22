@@ -179,6 +179,21 @@ export const TaxonomyExplorer: React.FC<Props> = ({
 
   const displayTree = useMemo(() => processNodes(localTree), [localTree, filter, expandedNodeIds]);
 
+  // Check for exact match to hide the button
+  const hasExactMatch = useMemo(() => {
+      if (!filter) return false;
+      const lowerFilter = filter.trim().toLowerCase();
+      // Recursive check helper since displayTree is nested
+      const checkNodes = (nodes: TreeNode[]): boolean => {
+          return nodes.some(n => {
+              if (n.label.toLowerCase() === lowerFilter) return true;
+              if (n.children) return checkNodes(n.children);
+              return false;
+          });
+      };
+      return checkNodes(displayTree);
+  }, [displayTree, filter]);
+
   const handleToggleExpand = (id: number) => {
       const newSet = new Set(expandedNodeIds);
       if (newSet.has(id)) newSet.delete(id);
@@ -200,7 +215,6 @@ export const TaxonomyExplorer: React.FC<Props> = ({
         <div className="pb-10 px-2"> 
            {isEditMode && <RootDropZone />}
 
-           {/* [CHANGED] Always render tree items if they exist */}
            {displayTree.map(node => (
                 <TaxonomyNode 
                   key={node.id} 
@@ -219,31 +233,29 @@ export const TaxonomyExplorer: React.FC<Props> = ({
                 />
             ))}
 
-            {/* [CHANGED] Always render Create Button at the bottom if filter is active */}
-            {filter.trim().length > 0 && (
+            {/* [CHANGED] 
+                1. Logic: Hide if filter is empty OR if an exact match exists 
+                2. Style: Unified look, removed huge padding 
+            */}
+            {filter.trim().length > 0 && !hasExactMatch && (
                 <button 
                     onClick={() => onCreateTag(filter)}
-                    className={`
-                        w-full flex items-center gap-2 px-3 py-2 mt-2 rounded-md text-sm transition-all
-                        ${displayTree.length === 0 
-                            ? 'bg-blue-50 text-blue-600 border border-blue-200 justify-center py-8 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-400' // Prominent if empty
-                            : 'hover:bg-blue-50 text-slate-400 hover:text-blue-600 border border-transparent hover:border-blue-100 dark:hover:bg-slate-800 dark:hover:text-blue-400' // Subtle list item if tree exists
-                        }
-                    `}
+                    className="w-full flex items-center gap-2 px-2 py-1.5 mt-1 ml-3 rounded-md text-sm transition-all text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 dark:hover:text-blue-400 group"
                 >
-                    <PlusIcon className="w-4 h-4" />
-                    <span className="font-semibold">Create "{filter}"</span>
+                    <div className="w-6 flex items-center justify-center flex-shrink-0">
+                        <PlusIcon className="w-4 h-4 text-slate-400 group-hover:text-blue-500" />
+                    </div>
+                    <span className="font-medium italic">Create "{filter}"</span>
                 </button>
             )}
 
-            {/* [CHANGED] Empty state only if no filter and no tree */}
             {displayTree.length === 0 && filter.trim().length === 0 && (
                 <div className="p-8 text-center text-slate-400 text-xs italic">
                     No tags found.
                 </div>
             )}
         </div>
-
+        
         <DragOverlay>
             {activeDragId ? (
                 <div className="bg-white border border-blue-400 p-2 rounded shadow-lg opacity-90 text-sm font-bold text-blue-800">
