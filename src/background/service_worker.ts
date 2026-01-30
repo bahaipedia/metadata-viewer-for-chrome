@@ -16,12 +16,9 @@ const getHeaders = (token?: string) => {
 
 // 1. SIDE PANEL TOGGLE
 chrome.action.onClicked.addListener((tab) => {
-    chrome.sidePanel.setOptions({
-        tabId: tab.id,
-        path: 'public/side_panel.html',
-        enabled: true
-    });
-    (chrome.sidePanel as any).open({ tabId: tab.id });
+    if (tab.id) {
+        (chrome.sidePanel as any).open({ tabId: tab.id });
+    }
 });
 
 // 2. UNIFIED MESSAGE HANDLER
