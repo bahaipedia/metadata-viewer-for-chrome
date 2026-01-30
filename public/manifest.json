@@ -5,8 +5,7 @@
   "description": "A research tool for annotating and cross-referencing Bahá’í literature across official and community run websites.",
   "permissions": [
     "storage",
-    "sidePanel",
-    "contextMenus"
+    "sidePanel"
   ],
   "host_permissions": [
     "https://*.bahai.works/*",
