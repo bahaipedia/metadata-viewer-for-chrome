@@ -27,7 +27,7 @@
     }
   ],
   "side_panel": {
-    "default_path": "side_panel.html"
+    "default_path": "public/side_panel.html"
   },
   "action": {
     "default_title": "Open text annotation tool"
