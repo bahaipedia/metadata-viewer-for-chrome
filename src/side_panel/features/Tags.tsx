@@ -320,8 +320,32 @@ export const Tags = () => {
     }
     const timer = setTimeout(async () => {
         try {
-            const results = await get(`/api/tags?search=${encodeURIComponent(parentSearchQuery)}&scope=mine`);
-            setParentSuggestions(results.filter((t: any) => t.id !== editingTag.id));
+            // Increased limit to 100 to cast a wider net
+            const results = await get(`/api/tags?search=${encodeURIComponent(parentSearchQuery)}&scope=mine&limit=100`);
+            
+            // Advanced sorting: Exact Match > Starts With > Shortest Length
+            const sorted = results
+                .filter((t: any) => t.id !== editingTag.id)
+                .sort((a: any, b: any) => {
+                    const q = parentSearchQuery.toLowerCase();
+                    const nameA = a.label.toLowerCase();
+                    const nameB = b.label.toLowerCase();
+
+                    // 1. Exact Match Priority
+                    if (nameA === q && nameB !== q) return -1;
+                    if (nameB === q && nameA !== q) return 1;
+
+                    // 2. Starts With Priority
+                    const startA = nameA.startsWith(q);
+                    const startB = nameB.startsWith(q);
+                    if (startA && !startB) return -1;
+                    if (startB && !startA) return 1;
+
+                    // 3. Shortest Length (General preference for parent categories)
+                    return nameA.length - nameB.length;
+                });
+
+            setParentSuggestions(sorted);
         } catch (e) { console.error(e); }
     }, 250);
     return () => clearTimeout(timer);
