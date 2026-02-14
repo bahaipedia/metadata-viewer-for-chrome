@@ -68,6 +68,8 @@ export const Tags = () => {
   const [selectedParent, setSelectedParent] = useState<{id: number, label: string} | null>(null);
   const parentDropdownRef = useRef<HTMLUListElement>(null);
   const [searchTrigger, setSearchTrigger] = useState(0);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const dropdownListRef = useRef<HTMLUListElement>(null);
 
   // Repair State
   const [repairSelection, setRepairSelection] = useState<{text: string, start: number, end: number, connected_anchors?: number[]} | null>(null);
@@ -362,6 +364,8 @@ export const Tags = () => {
                     return nameA.length - nameB.length;
                 });
 
+            setParentSuggestions(sorted);
+            setHighlightedIndex(-1); 
             setParentSuggestions(sorted);
         } catch (e) { console.error(e); }
     }, 250);
@@ -814,7 +818,7 @@ export const Tags = () => {
                   <div>
                     <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">Tag Name</label>
                     <input 
-                      ref={tagNameInputRef} // [ADDED] Attach ref here
+                      ref={tagNameInputRef}
                       type="text" 
                       className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none dark:bg-slate-950 dark:border-slate-700 dark:text-slate-200"
                       value={editingTag.label}
@@ -845,7 +849,7 @@ export const Tags = () => {
                           value={parentSearchQuery}
                           onChange={(e) => setParentSearchQuery(e.target.value)}
                           onFocus={() => setSearchTrigger(prev => prev + 1)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleModifyTag()}
+                          onKeyDown={handleParentInputKeyDown}
                         />
                         {parentSuggestions.length > 0 && createPortal(
                           <ul
