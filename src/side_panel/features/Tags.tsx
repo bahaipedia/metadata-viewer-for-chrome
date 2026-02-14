@@ -321,6 +321,7 @@ export const Tags = () => {
     const timer = setTimeout(async () => {
         try {
             // Increased limit to 100 to cast a wider net
+            console.log("🔍 [DEBUG] Searching parents for:", parentSearchQuery);
             const results = await get(`/api/tags?search=${encodeURIComponent(parentSearchQuery)}&scope=mine&limit=100`);
             
             // Advanced sorting: Exact Match > Starts With > Shortest Length
@@ -344,7 +345,7 @@ export const Tags = () => {
                     // 3. Shortest Length (General preference for parent categories)
                     return nameA.length - nameB.length;
                 });
-
+            console.log("✅ [DEBUG] Sorted suggestions:", sorted);
             setParentSuggestions(sorted);
         } catch (e) { console.error(e); }
     }, 250);
