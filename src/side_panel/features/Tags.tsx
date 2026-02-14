@@ -66,6 +66,8 @@ export const Tags = () => {
   const [parentSearchQuery, setParentSearchQuery] = useState('');
   const [parentSuggestions, setParentSuggestions] = useState<DefinedTag[]>([]);
   const [selectedParent, setSelectedParent] = useState<{id: number, label: string} | null>(null);
+  const parentDropdownRef = useRef<HTMLUListElement>(null);
+  const [searchTrigger, setSearchTrigger] = useState(0);
 
   // Repair State
   const [repairSelection, setRepairSelection] = useState<{text: string, start: number, end: number, connected_anchors?: number[]} | null>(null);
@@ -312,6 +314,22 @@ export const Tags = () => {
     }
   };
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      // If click is NOT in the dropdown AND NOT in the input box
+      if (parentDropdownRef.current && !parentDropdownRef.current.contains(event.target as Node) &&
+          parentInputRef.current && !parentInputRef.current.contains(event.target as Node)) {
+          setParentSuggestions([]); // Close the menu
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   // Search for parents
   useEffect(() => {
     if (!editingTag || !parentSearchQuery) {
@@ -320,7 +338,6 @@ export const Tags = () => {
     }
     const timer = setTimeout(async () => {
         try {
-            // Increased limit to 100 to cast a wider net
             const results = await get(`/api/tags?search=${encodeURIComponent(parentSearchQuery)}&scope=mine&limit=100`);
             
             // Advanced sorting: Exact Match > Starts With > Shortest Length
@@ -349,7 +366,7 @@ export const Tags = () => {
         } catch (e) { console.error(e); }
     }, 250);
     return () => clearTimeout(timer);
-  }, [parentSearchQuery, editingTag]);
+  }, [parentSearchQuery, editingTag, searchTrigger]);
 
   // Quick Create
   const handleQuickCreate = async (label: string) => {
@@ -827,10 +844,12 @@ export const Tags = () => {
                           placeholder="Type to find a parent category..."
                           value={parentSearchQuery}
                           onChange={(e) => setParentSearchQuery(e.target.value)}
+                          onFocus={() => setSearchTrigger(prev => prev + 1)}
                           onKeyDown={(e) => e.key === 'Enter' && handleModifyTag()}
                         />
                         {parentSuggestions.length > 0 && createPortal(
-                          <ul 
+                          <ul
+                              ref={parentDropdownRef}
                               className="fixed z-[9999] bg-white border border-slate-200 rounded-lg shadow-2xl ring-1 ring-black/10 overflow-hidden dark:bg-slate-900 dark:border-slate-700 dark:ring-white/10"
                               style={{
                                   left: parentDropdownPos.left,
