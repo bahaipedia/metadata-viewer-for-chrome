@@ -534,18 +534,21 @@ export const Tags = () => {
     switch (e.key) {
         case 'ArrowDown':
             e.preventDefault();
+            // Start at top (0), stop at bottom
             setHighlightedIndex(prev => 
                 prev < parentSuggestions.length - 1 ? prev + 1 : prev
             );
             break;
         case 'ArrowUp':
             e.preventDefault();
-            setHighlightedIndex(prev => prev > 0 ? prev - 1 : -1);
+            // If at input (-1), jump to bottom. Otherwise move up.
+            setHighlightedIndex(prev => 
+                prev < 0 ? parentSuggestions.length - 1 : prev - 1
+            );
             break;
         case 'Enter':
             e.preventDefault();
             if (highlightedIndex >= 0) {
-                // Select the highlighted item
                 const selected = parentSuggestions[highlightedIndex];
                 setSelectedParent({ id: selected.id, label: selected.label });
                 setParentSuggestions([]);
@@ -553,7 +556,6 @@ export const Tags = () => {
                 setHighlightedIndex(-1);
                 tagNameInputRef.current?.focus();
             } else {
-                // If nothing highlighted, assume user wants to save
                 handleModifyTag();
             }
             break;
