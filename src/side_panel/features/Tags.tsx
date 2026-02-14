@@ -365,8 +365,7 @@ export const Tags = () => {
                 });
 
             setParentSuggestions(sorted);
-            setHighlightedIndex(-1); 
-            setParentSuggestions(sorted);
+            setHighlightedIndex(-1); // Reset highlight when results change
         } catch (e) { console.error(e); }
     }, 250);
     return () => clearTimeout(timer);
@@ -525,13 +524,66 @@ export const Tags = () => {
       setIsDeleteMode(false);
   };
 
+  // KEYBOARD NAVIGATION LOGIC
+  const handleParentInputKeyDown = (e: React.KeyboardEvent) => {
+    if (parentSuggestions.length === 0) {
+        if (e.key === 'Enter') handleModifyTag();
+        return;
+    }
+
+    switch (e.key) {
+        case 'ArrowDown':
+            e.preventDefault();
+            setHighlightedIndex(prev => 
+                prev < parentSuggestions.length - 1 ? prev + 1 : prev
+            );
+            break;
+        case 'ArrowUp':
+            e.preventDefault();
+            setHighlightedIndex(prev => prev > 0 ? prev - 1 : -1);
+            break;
+        case 'Enter':
+            e.preventDefault();
+            if (highlightedIndex >= 0) {
+                // Select the highlighted item
+                const selected = parentSuggestions[highlightedIndex];
+                setSelectedParent({ id: selected.id, label: selected.label });
+                setParentSuggestions([]);
+                setParentSearchQuery(''); 
+                setHighlightedIndex(-1);
+                tagNameInputRef.current?.focus();
+            } else {
+                // If nothing highlighted, assume user wants to save
+                handleModifyTag();
+            }
+            break;
+        case 'Escape':
+            e.preventDefault();
+            setParentSuggestions([]);
+            setHighlightedIndex(-1);
+            break;
+    }
+  };
+
+  // AUTO-SCROLL LOGIC
+  useEffect(() => {
+    if (highlightedIndex >= 0 && dropdownListRef.current) {
+        const list = dropdownListRef.current;
+        // +1 because of the "Suggested Parents" header li
+        const element = list.children[highlightedIndex + 1] as HTMLElement; 
+        if (element) {
+            element.scrollIntoView({ block: 'nearest' });
+        }
+    }
+  }, [highlightedIndex]);
+
   return (
     <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950">
       
       {/* Header */}
       <div className="p-3 bg-white border-b border-slate-200 shadow-sm z-10 space-y-3 dark:bg-slate-900 dark:border-slate-800">
         <div className="flex bg-slate-100 p-1 rounded-lg dark:bg-slate-800">
-          {/* [CHANGED] Button 1: Taxonomy Tree */}
+          {/* Button 1: Taxonomy Tree */}
           <button
             onClick={() => setViewMode('tree')}
             className={`flex-1 flex items-center justify-center py-1.5 text-xs font-semibold rounded-md transition-colors ${
@@ -544,7 +596,7 @@ export const Tags = () => {
             Taxonomy Tree
           </button>
           
-          {/* [CHANGED] Button 2: Flat List */}
+          {/* Button 2: Flat List */}
           <button
             onClick={() => setViewMode('flat')}
             className={`flex-1 flex items-center justify-center py-1.5 text-xs font-semibold rounded-md transition-colors ${
@@ -570,7 +622,7 @@ export const Tags = () => {
                 />
             </div>
 
-            {/* [CHANGED] Only show Edit controls in Tree mode */}
+            {/* Only show Edit controls in Tree mode */}
             {viewMode === 'tree' && (
                 !isEditMode ? (
                     <button 
@@ -721,12 +773,12 @@ export const Tags = () => {
                                          </div>
                                          
                                          <button 
-                                            onClick={handleConfirmTagDelete} 
-                                            className="w-full flex items-center justify-center gap-2 p-3 bg-red-500 border border-red-600 text-white rounded hover:bg-red-600 transition-colors text-sm font-semibold dark:border-red-500"
-                                        >
-                                            <TrashIcon className="w-4 h-4" />
-                                            Delete "{editingTag.label}"
-                                        </button>
+                                             onClick={handleConfirmTagDelete} 
+                                             className="w-full flex items-center justify-center gap-2 p-3 bg-red-500 border border-red-600 text-white rounded hover:bg-red-600 transition-colors text-sm font-semibold dark:border-red-500"
+                                         >
+                                             <TrashIcon className="w-4 h-4" />
+                                             Delete "{editingTag.label}"
+                                         </button>
                                      </>
                                  ) : (
                                      /* Case A2: Tag EMPTY */
@@ -735,12 +787,12 @@ export const Tags = () => {
                                             Are you sure you want to delete <strong>"{editingTag.label}"</strong>?
                                          </p>
                                          <button 
-                                            onClick={handleConfirmTagDelete}
-                                            className="w-full flex items-center justify-center gap-2 p-3 bg-red-500 border border-red-600 text-white rounded hover:bg-red-600 transition-colors text-sm font-semibold dark:border-red-500"
-                                         >
-                                            <TrashIcon className="w-4 h-4" />
-                                            Yes, Delete
-                                         </button>
+                                             onClick={handleConfirmTagDelete}
+                                             className="w-full flex items-center justify-center gap-2 p-3 bg-red-500 border border-red-600 text-white rounded hover:bg-red-600 transition-colors text-sm font-semibold dark:border-red-500"
+                                          >
+                                             <TrashIcon className="w-4 h-4" />
+                                             Yes, Delete
+                                          </button>
                                      </>
                                  )}
     
@@ -852,8 +904,8 @@ export const Tags = () => {
                           onKeyDown={handleParentInputKeyDown}
                         />
                         {parentSuggestions.length > 0 && createPortal(
-                          <ul
-                              ref={parentDropdownRef}
+                          <ul 
+                              ref={dropdownListRef}
                               className="fixed z-[9999] bg-white border border-slate-200 rounded-lg shadow-2xl ring-1 ring-black/10 overflow-hidden dark:bg-slate-900 dark:border-slate-700 dark:ring-white/10"
                               style={{
                                   left: parentDropdownPos.left,
@@ -866,17 +918,25 @@ export const Tags = () => {
                             <li className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500">
                               Suggested Parents
                             </li>
-                            {parentSuggestions.map(s => (
+                            {parentSuggestions.map((s, index) => (
                               <li 
                                 key={s.id} 
-                                className="px-3 py-2.5 text-sm hover:bg-blue-50 cursor-pointer flex items-center gap-2 text-slate-700 border-b border-slate-50 last:border-0 dark:text-slate-300 dark:hover:bg-slate-800 dark:border-slate-800"
+                                className={`
+                                  px-3 py-2.5 text-sm cursor-pointer flex items-center gap-2 border-b border-slate-50 last:border-0 
+                                  transition-colors duration-100
+                                  ${index === highlightedIndex 
+                                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
+                                      : 'hover:bg-blue-50 text-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:border-slate-800'}
+                                `}
+                                onMouseEnter={() => setHighlightedIndex(index)}
                                 onClick={() => {
                                   setSelectedParent({ id: s.id, label: s.label });
                                   setParentSuggestions([]);
+                                  setHighlightedIndex(-1);
                                   tagNameInputRef.current?.focus();
                                 }}
                               >
-                                <FolderIcon className="w-4 h-4 text-blue-400 opacity-75"/>
+                                <FolderIcon className={`w-4 h-4 ${index === highlightedIndex ? 'text-blue-600' : 'text-blue-400 opacity-75'}`}/>
                                 <span className="truncate">{s.label}</span>
                               </li>
                             ))}
@@ -907,7 +967,7 @@ export const Tags = () => {
                                 onChange={(e) => setAuthor(e.target.value)} 
                                 placeholder="Enter Author Name..." 
                                 autoFocus 
-                              />
+                             />
                              <UserIcon className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400 dark:text-slate-500" />
                              <button onClick={() => { setShowManualAuthorInput(false); setAuthor('Undefined'); }} className="absolute right-2 top-2 text-xs text-blue-600 hover:underline dark:text-blue-400">Cancel</button>
                            </div>
@@ -917,7 +977,7 @@ export const Tags = () => {
                                 className="w-full p-2 pl-8 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none appearance-none bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-slate-200" 
                                 value={author} 
                                 onChange={(e) => { if (e.target.value === 'OTHER_MANUAL') { setShowManualAuthorInput(true); setAuthor(''); } else { setAuthor(e.target.value); } }}
-                              >
+                             >
                                <option value="Undefined" disabled>Select an Author...</option>
                                {CANONICAL_AUTHORS.map(name => <option key={name} value={name}>{name}</option>)}
                                <option value="OTHER_MANUAL">Other...</option>
