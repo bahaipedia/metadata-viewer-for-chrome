@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface Props {
   onLogin: () => void;
@@ -8,9 +8,23 @@ export const AuthGate: React.FC<Props> = ({ onLogin }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // New State for Credentials
+  // State for Credentials
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
+
+  // Load saved credentials when the component mounts
+  useEffect(() => {
+    chrome.storage.local.get(['saved_username', 'saved_password'], (result) => {
+      if (result.saved_username) {
+        setUsername(result.saved_username);
+        setRememberMe(true);
+      }
+      if (result.saved_password) {
+        setPassword(result.saved_password);
+      }
+    });
+  }, []);
 
   const handleConnect = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,6 +39,16 @@ export const AuthGate: React.FC<Props> = ({ onLogin }) => {
       });
 
       if (response && response.success) {
+        // Handle Remember Me logic on successful login
+        if (rememberMe) {
+          await chrome.storage.local.set({
+            saved_username: username,
+            saved_password: password
+          });
+        } else {
+          await chrome.storage.local.remove(['saved_username', 'saved_password']);
+        }
+
         onLogin();
       } else {
         setError(response.error || "Login failed.");
@@ -68,6 +92,18 @@ export const AuthGate: React.FC<Props> = ({ onLogin }) => {
           onChange={e => setPassword(e.target.value)}
           required
         />
+        
+        {/* Remember Me Checkbox */}
+        <div className="flex items-center text-sm text-slate-600 dark:text-slate-400 mb-2">
+          <input
+            type="checkbox"
+            id="rememberMe"
+            checked={rememberMe}
+            onChange={(e) => setRememberMe(e.target.checked)}
+            className="mr-2 rounded border-slate-300 dark:border-slate-600"
+          />
+          <label htmlFor="rememberMe">Remember me</label>
+        </div>
         
         <button
           type="submit"
