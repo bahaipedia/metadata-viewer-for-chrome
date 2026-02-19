@@ -12,10 +12,25 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    chrome.storage.local.get(['api_token'], (result) => {
-      if (result.api_token) setIsAuthenticated(true);
-    });
-  }, []);
+    // 1. Initial check on load
+    chrome.storage.local.get(['api_token'], (result) => {
+      if (result.api_token) setIsAuthenticated(true);
+    });
+
+    // 2. Listen for token removal (triggered by 403 errors in useApi)
+    const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) => {
+      if (areaName === 'local' && changes.api_token) {
+        if (!changes.api_token.newValue) {
+          setIsAuthenticated(false);
+        } else {
+          setIsAuthenticated(true);
+        }
+      }
+    };
+
+    chrome.storage.onChanged.addListener(handleStorageChange);
+    return () => chrome.storage.onChanged.removeListener(handleStorageChange);
+  }, []);
 
   if (!isAuthenticated) {
     return <AuthGate onLogin={() => setIsAuthenticated(true)} />;
