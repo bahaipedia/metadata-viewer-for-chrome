@@ -83,7 +83,7 @@ export const AuthGate: React.FC<Props> = ({ onLogin }) => {
         <ol className="list-decimal pl-4 space-y-1">
           <li>Go to <b>Special:BotPasswords</b> on Bahai.works</li>
           <li>Create a new bot (e.g. named "AnnotationTool")</li>
-          <li>Grant it <b>High-volume editing</b> (or basic rights)</li>
+          <li>Grant it <b>High-volume editing</b></li>
           <li>Copy the password generated there.</li>
         </ol>
       </div>
