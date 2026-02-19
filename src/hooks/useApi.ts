@@ -25,9 +25,15 @@ export const useApi = () => {
     });
 
     if (!res.ok) {
-      const errData = await res.json();
-      throw new Error(errData.error || 'API Request failed');
-    }
+      // Clear token if unauthorized or forbidden
+      if (res.status === 401 || res.status === 403) {
+        await chrome.storage.local.remove(['api_token']);
+      }
+
+      // Fallback if the response isn't JSON
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || `API Request failed with status ${res.status}`);
+    }
 
     return res.json();
   };
