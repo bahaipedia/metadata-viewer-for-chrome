@@ -25,3 +25,14 @@ yarn-error.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# OS and Editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Chrome Web Store assets & design drafts
+/public/Gemini_Generated_Image*.png
+/public/logo*.png
+/public/*.xcf
