@@ -1,10 +1,31 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { PencilSquareIcon, LinkIcon, ChatBubbleLeftRightIcon, TagIcon } from '@heroicons/react/24/solid';
+import { PencilSquareIcon, LinkIcon, ChatBubbleLeftRightIcon, TagIcon, SunIcon, MoonIcon } from '@heroicons/react/24/solid';
 
 export const MainLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+
+  useEffect(() => {
+    chrome.storage.local.get(['theme'], (res) => {
+      if (res.theme) setIsDark(res.theme === 'dark');
+    });
+
+    const handleStorage = (changes: { [key: string]: chrome.storage.StorageChange }, area: string) => {
+      if (area === 'local' && changes.theme) {
+        setIsDark(changes.theme.newValue === 'dark');
+      }
+    };
+
+    chrome.storage.onChanged.addListener(handleStorage);
+    return () => chrome.storage.onChanged.removeListener(handleStorage);
+  }, []);
+
+  const toggleTheme = () => {
+    const nextTheme = isDark ? 'light' : 'dark';
+    chrome.storage.local.set({ theme: nextTheme });
+  };
 
   // --- NEW: Broadcast Tab Change to Content Script ---
   useEffect(() => {
@@ -29,7 +50,15 @@ export const MainLayout = () => {
       : "text-gray-400 hover:text-gray-600";
 
   return (
-    <div className="flex flex-col h-screen bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-200">
+    <div className="relative flex flex-col h-screen bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-200">
+      <button
+        onClick={toggleTheme}
+        title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+        className="fixed top-3 right-3 z-50 p-2 rounded-full bg-white/80 dark:bg-slate-800/80 backdrop-blur border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-amber-400 shadow-sm transition-colors"
+      >
+        {isDark ? <SunIcon className="h-4 w-4" /> : <MoonIcon className="h-4 w-4" />}
+      </button>
+
       <div className="flex-1 overflow-y-auto pb-16">
         <Outlet />
       </div>
