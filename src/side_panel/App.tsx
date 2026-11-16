@@ -12,25 +12,43 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    // 1. Initial check on load
-    chrome.storage.local.get(['api_token'], (result) => {
-      if (result.api_token) setIsAuthenticated(true);
-    });
+    const applyTheme = (theme: 'dark' | 'light') => {
+      document.documentElement.classList.toggle('dark', theme === 'dark');
+    };
 
-    // 2. Listen for token removal (triggered by 403 errors in useApi)
-    const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) => {
-      if (areaName === 'local' && changes.api_token) {
-        if (!changes.api_token.newValue) {
-          setIsAuthenticated(false);
-        } else {
-          setIsAuthenticated(true);
-        }
-      }
-    };
+    // 1. Initial check on load
+    chrome.storage.local.get(['api_token', 'theme'], (result) => {
+      if (result.api_token) setIsAuthenticated(true);
 
-    chrome.storage.onChanged.addListener(handleStorageChange);
-    return () => chrome.storage.onChanged.removeListener(handleStorageChange);
-  }, []);
+      if (result.theme === 'dark' || result.theme === 'light') {
+        applyTheme(result.theme);
+      } else {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const initialTheme = prefersDark ? 'dark' : 'light';
+        applyTheme(initialTheme);
+        chrome.storage.local.set({ theme: initialTheme });
+      }
+    });
+
+    // 2. Listen for token removal (triggered by 403 errors in useApi)
+    const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) => {
+      if (areaName === 'local') {
+        if (changes.api_token) {
+          if (!changes.api_token.newValue) {
+            setIsAuthenticated(false);
+          } else {
+            setIsAuthenticated(true);
+          }
+        }
+        if (changes.theme && (changes.theme.newValue === 'dark' || changes.theme.newValue === 'light')) {
+          applyTheme(changes.theme.newValue);
+        }
+      }
+    };
+
+    chrome.storage.onChanged.addListener(handleStorageChange);
+    return () => chrome.storage.onChanged.removeListener(handleStorageChange);
+  }, []);
 
   if (!isAuthenticated) {
     return <AuthGate onLogin={() => setIsAuthenticated(true)} />;
