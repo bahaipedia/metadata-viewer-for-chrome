@@ -8,6 +8,8 @@ let cachedUnits: LogicalUnit[] = [];
 let currentMode: string = 'TAXONOMY_MODE';
 let pendingScrollId: number | null = null;
 const fetchedIds = new Set<string>();
+let currentBrokenUnits: LogicalUnit[] = [];
+let isDarkTheme: boolean = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
 
 // Constants for Healer
 const ANCHOR_RETRY_SIZES = [50, 20];
@@ -16,9 +18,12 @@ const BATCH_DELAY = 1000;
 
 export const initHighlighter = async () => {
     // 1. Load active mode
-    const storageResult = await chrome.storage.local.get('highlightMode');
+    const storageResult = await chrome.storage.local.get(['highlightMode', 'theme']);
     if (storageResult.highlightMode) {
         currentMode = storageResult.highlightMode;
+    }
+    if (storageResult.theme === 'dark' || storageResult.theme === 'light') {
+        isDarkTheme = storageResult.theme === 'dark';
     }
     
     // 2. Setup Listeners
@@ -68,9 +73,17 @@ export const initHighlighter = async () => {
     });
 
     chrome.storage.onChanged.addListener((changes, area) => {
-        if (area === 'local' && changes.highlightMode) {
-            currentMode = changes.highlightMode.newValue;
-            renderHighlights();
+        if (area === 'local') {
+            if (changes.highlightMode) {
+                currentMode = changes.highlightMode.newValue;
+                renderHighlights();
+            }
+            if (changes.theme) {
+                isDarkTheme = changes.theme.newValue === 'dark';
+                if (currentBrokenUnits.length > 0) {
+                    renderBrokenLinksFooter(currentBrokenUnits);
+                }
+            }
         }
     });
 
@@ -307,6 +320,7 @@ const verifyAndHealUnits = async () => {
 
 // Footer Component Injection
 const renderBrokenLinksFooter = (brokenUnits: LogicalUnit[]) => {
+    currentBrokenUnits = brokenUnits;
     // 1. Cleanup existing
     const existing = document.getElementById('rag-broken-footer');
     if (existing) existing.remove();
@@ -316,8 +330,8 @@ const renderBrokenLinksFooter = (brokenUnits: LogicalUnit[]) => {
         return;
     }
 
-    // Check System Dark Mode Preference
-    const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    // Check Theme Preference
+    const isDark = isDarkTheme;
 
     // 2. Create Container
     const container = document.createElement('div');
@@ -564,7 +578,7 @@ const attemptScroll = (attempts = 10) => {
         elements[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
         
         // Check Dark Mode for Flash Color
-        const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const isDark = isDarkTheme;
         const flashColor = isDark ? "rgba(250, 204, 21, 0.4)" : "rgba(255, 235, 59, 0.8)";
 
         // Flash ALL elements
