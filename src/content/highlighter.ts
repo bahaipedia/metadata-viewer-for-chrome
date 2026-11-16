@@ -25,6 +25,7 @@ export const initHighlighter = async () => {
     if (storageResult.theme === 'dark' || storageResult.theme === 'light') {
         isDarkTheme = storageResult.theme === 'dark';
     }
+    document.documentElement.classList.toggle('rag-dark', isDarkTheme);
     
     // 2. Setup Listeners
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -80,6 +81,7 @@ export const initHighlighter = async () => {
             }
             if (changes.theme) {
                 isDarkTheme = changes.theme.newValue === 'dark';
+                document.documentElement.classList.toggle('rag-dark', isDarkTheme);
                 if (currentBrokenUnits.length > 0) {
                     renderBrokenLinksFooter(currentBrokenUnits);
                 }
