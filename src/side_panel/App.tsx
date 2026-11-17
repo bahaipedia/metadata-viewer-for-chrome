@@ -8,6 +8,7 @@ import { Tags } from './features/Tags';
 import { Label } from './features/Label';
 import { RelationshipManager } from './features/RelationshipManager';
 import { QAManager } from './features/QAManager';
+import { HelpPage } from './features/HelpPage';
 
 const AppRoutes = () => {
   const { showLogin, closeLogin } = useAuth();
@@ -24,6 +25,7 @@ const AppRoutes = () => {
           <Route path="label" element={<Label />} />
           <Route path="qa" element={<QAManager />} />
           <Route path="relations" element={<RelationshipManager />} />
+          <Route path="help" element={<HelpPage />} />
         </Route>
       </Routes>
     </SelectionProvider>

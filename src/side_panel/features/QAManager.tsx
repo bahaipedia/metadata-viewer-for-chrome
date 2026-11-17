@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { QuestionMarkCircleIcon, MagnifyingGlassIcon, ChatBubbleLeftRightIcon, PlusIcon } from '@heroicons/react/24/outline';
-import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/solid';
+import { ChatBubbleLeftRightIcon as ChatOutlineIcon } from '@heroicons/react/24/outline';
+import { ChatBubbleLeftRightIcon, MagnifyingGlassIcon, PlusIcon } from '@heroicons/react/24/solid';
 import { useSelection } from '@/side_panel/context/SelectionContext';
 import { useAuth } from '@/side_panel/context/AuthContext';
-import { PinnedPageSection, DirectoryFolder } from '@/side_panel/components/StackedDirectory';
+import { BottomPageSection, DirectoryFolder } from '@/side_panel/components/StackedDirectory';
 import { useApi } from '@/hooks/useApi';
 import { LogicalUnit, PageMetadata } from '@/utils/types';
 
@@ -28,7 +28,6 @@ export const QAManager = () => {
   const [allQAs, setAllQAs] = useState<any[]>([]);
   const [loadingAll, setLoadingAll] = useState(true);
   const [filterText, setFilterText] = useState('');
-  const [directoryOpen, setDirectoryOpen] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [listRefreshKey, setListRefreshKey] = useState(0);
 
@@ -82,8 +81,19 @@ export const QAManager = () => {
     };
 
     fetchPageQAs();
-    return () => { isMounted = false; };
-  }, [refreshTrigger, workspaceKey]);
+
+    const handleRuntimeMsg = (msg: any) => {
+      if (msg.type === 'PAGE_UNITS_UPDATED') {
+        fetchPageQAs();
+      }
+    };
+    chrome.runtime.onMessage.addListener(handleRuntimeMsg);
+
+    return () => {
+      isMounted = false;
+      chrome.runtime.onMessage.removeListener(handleRuntimeMsg);
+    };
+  }, [refreshTrigger, workspaceKey, listRefreshKey]);
 
   useEffect(() => {
     let isMounted = true;
@@ -349,157 +359,124 @@ export const QAManager = () => {
 
   if (!showBuilder) {
     return (
-      <div className="p-4 space-y-3 h-full flex flex-col overflow-hidden">
-        <div className="flex justify-between items-center pr-10 flex-shrink-0">
-          <div className="flex items-center gap-2 group relative">
-            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
-              Q&A Manager
-            </h2>
-            <QuestionMarkCircleIcon className="w-5 h-5 text-slate-400 cursor-help hover:text-slate-600 transition-colors" />
-
-            {/* Tooltip */}
-            <div className="absolute left-0 top-full mt-2 hidden group-hover:block w-72 p-3 bg-slate-800 text-white text-xs font-normal rounded-md shadow-xl z-20 leading-relaxed dark:bg-slate-700">
-              <p className="font-bold mb-1 border-b border-slate-600 pb-1">How to use this page:</p>
-              <p>If you come across an authoritative answer to a specific question use this form to highlight it. Doing so would allow bahai.chat to provide the direct answer instead of trying to generate one.</p>
-              <div className="absolute bottom-full left-6 border-8 border-transparent border-b-slate-800 dark:border-b-slate-700"></div>
+      <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950">
+        {/* Header */}
+        <div className="p-3 bg-white border-b border-slate-200 shadow-sm z-10 space-y-3 dark:bg-slate-900 dark:border-slate-800">
+          <div className="flex bg-slate-100 p-1 rounded-lg mr-20 dark:bg-slate-800">
+            <div className="flex-1 flex items-center justify-center py-1.5 text-xs font-semibold rounded-md bg-white text-blue-600 shadow-sm dark:bg-slate-700 dark:text-blue-400">
+              <ChatBubbleLeftRightIcon className="w-3 h-3 mr-1" />
+              All Q&A Pairs ({allQAs.length})
             </div>
           </div>
 
-          {!isReadOnly && (
-            <button
-              type="button"
-              onClick={() => setIsCreating(true)}
-              className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition-colors"
-            >
-              <PlusIcon className="w-3.5 h-3.5" />
-              <span>New</span>
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <MagnifyingGlassIcon className="absolute left-2 top-2.5 h-4 w-4 text-slate-400 dark:text-slate-500" />
+              <input
+                type="text"
+                placeholder="Filter questions, answers, or books..."
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+                className="w-full pl-8 pr-2 py-2 text-sm border rounded bg-slate-50 focus:bg-white focus:ring-1 focus:ring-blue-500 outline-none dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 dark:focus:bg-slate-950"
+              />
+            </div>
+
+            {!isReadOnly && (
+              <button
+                type="button"
+                onClick={() => setIsCreating(true)}
+                title="Create Q&A Pair"
+                className="p-2 text-slate-500 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 border border-slate-200 rounded transition-colors dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 dark:hover:bg-slate-700 dark:hover:text-blue-400"
+              >
+                <PlusIcon className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
 
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-2">
+          <div className="pb-10 px-2">
+            {loadingAll ? (
+              <div className="p-4 text-xs text-slate-400">Loading...</div>
+            ) : groupedQAs.length > 0 ? (
+              groupedQAs.map(([groupName, items]) => {
+                const isOpen = Boolean(filterText.trim()) || expandedGroups.has(groupName);
+                return (
+                  <DirectoryFolder
+                    key={groupName}
+                    label={groupName}
+                    count={items.length}
+                    isOpen={isOpen}
+                    onToggle={() => toggleGroup(groupName)}
+                  >
+                    {items.map((qa: any) => (
+                      <div
+                        key={qa.id}
+                        onClick={() => handleJumpToQA(qa)}
+                        className="ml-3 py-1.5 px-2 cursor-pointer transition-all duration-200 border-l-2 border-transparent hover:border-blue-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/50 text-xs space-y-0.5"
+                      >
+                        <div className="font-medium text-slate-700 line-clamp-2 dark:text-slate-200">
+                          <span className="opacity-50 mr-1 text-[10px]">❓</span>
+                          {qa.question_text}
+                        </div>
+                        <div className="pl-4 text-slate-500 font-serif italic line-clamp-1 dark:text-slate-400">
+                          "{qa.answer_text}"
+                        </div>
+                        <div className="pl-4 text-[10px] text-slate-400 dark:text-slate-500 truncate">
+                          {qa.author || 'Unknown'}{qa._subTitle && qa._subTitle !== groupName ? ` • ${qa._subTitle}` : ''}
+                        </div>
+                      </div>
+                    ))}
+                  </DirectoryFolder>
+                );
+              })
+            ) : allQAs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center p-8 text-center text-slate-400 dark:text-slate-500">
+                <ChatOutlineIcon className="h-10 w-10 mb-2 opacity-20" />
+                <p className="text-xs leading-relaxed">
+                  Highlight an authoritative answer on a page (such as in Some Answered Questions) to pair it with its question.
+                </p>
+              </div>
+            ) : (
+              <div className="p-8 text-center text-slate-400 text-xs italic">
+                No matching Q&A pairs found.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Bottom Page Summary */}
         {pageQAs.length > 0 && (
-          <PinnedPageSection
+          <BottomPageSection
             label={`This page contains: ${pageQAs.length} Q&A Pair${pageQAs.length !== 1 ? 's' : ''}`}
-            accent="emerald"
           >
             {pageQAs.map((qa) => (
               <button
                 key={qa.id}
                 onClick={() => handleJumpToQA(qa)}
-                className="w-full text-left bg-white p-2 rounded border border-emerald-100 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all flex flex-col gap-1 dark:bg-slate-950 dark:border-slate-800 dark:hover:border-emerald-700"
+                className="w-full text-left py-1.5 px-2 rounded hover:bg-slate-100 transition-colors flex flex-col gap-0.5 dark:hover:bg-slate-800"
               >
-                <span className="text-xs font-semibold text-slate-800 line-clamp-2 dark:text-slate-200">
+                <span className="text-xs font-semibold text-slate-700 line-clamp-2 dark:text-slate-200">
                   Q: {qa.question_text}
                 </span>
-                <span className="text-xs text-slate-600 font-serif italic line-clamp-2 dark:text-slate-400">
+                <span className="text-xs text-slate-500 font-serif italic line-clamp-1 dark:text-slate-400">
                   "{qa.answer_text}"
                 </span>
-                {qa.author && (
-                  <span className="text-[10px] text-right text-slate-400 dark:text-slate-500">
-                    Answer: {qa.author}
-                  </span>
-                )}
               </button>
             ))}
-          </PinnedPageSection>
+          </BottomPageSection>
         )}
-
-        <div className="flex-1 min-h-0 flex flex-col bg-white rounded border border-slate-200 overflow-hidden dark:bg-slate-900 dark:border-slate-800">
-          <button
-            type="button"
-            onClick={() => setDirectoryOpen(prev => !prev)}
-            className="w-full flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs font-bold uppercase tracking-wide text-slate-600 dark:bg-slate-800/70 dark:border-slate-800 dark:text-slate-300 flex-shrink-0"
-          >
-            <span>All Q&A Pairs ({allQAs.length})</span>
-            {directoryOpen ? <ChevronDownIcon className="w-3.5 h-3.5" /> : <ChevronRightIcon className="w-3.5 h-3.5" />}
-          </button>
-
-          {directoryOpen && (
-            <>
-              <div className="p-2 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
-                <div className="relative">
-                  <MagnifyingGlassIcon className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Filter questions, answers, or books..."
-                    value={filterText}
-                    onChange={(e) => setFilterText(e.target.value)}
-                    className="w-full pl-8 pr-2 py-1.5 text-xs border border-slate-200 rounded bg-slate-50 focus:bg-white focus:ring-1 focus:ring-blue-500 outline-none dark:bg-slate-950 dark:border-slate-700 dark:text-slate-200"
-                  />
-                </div>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
-                {loadingAll ? (
-                  <div className="p-4 text-center text-xs text-slate-400">Loading Q&A pairs...</div>
-                ) : groupedQAs.length > 0 ? (
-                  groupedQAs.map(([groupName, items]) => {
-                    const isOpen = Boolean(filterText.trim()) || expandedGroups.has(groupName);
-                    return (
-                      <DirectoryFolder
-                        key={groupName}
-                        label={groupName}
-                        count={items.length}
-                        isOpen={isOpen}
-                        onToggle={() => toggleGroup(groupName)}
-                      >
-                        {items.map((qa: any) => (
-                          <button
-                            key={qa.id}
-                            onClick={() => handleJumpToQA(qa)}
-                            className="w-full text-left bg-slate-50 hover:bg-blue-50/70 p-2 rounded border border-slate-200/80 hover:border-blue-200 transition-colors flex flex-col gap-1 dark:bg-slate-950 dark:border-slate-800 dark:hover:border-blue-800"
-                          >
-                            <span className="text-xs font-semibold text-slate-700 line-clamp-2 dark:text-slate-200">
-                              Q: {qa.question_text}
-                            </span>
-                            <span className="text-xs text-slate-600 font-serif italic line-clamp-2 dark:text-slate-400">
-                              "{qa.answer_text}"
-                            </span>
-                            <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
-                              {qa.author || 'Unknown'}{qa._subTitle && qa._subTitle !== groupName ? ` • ${qa._subTitle}` : ''}
-                            </span>
-                          </button>
-                        ))}
-                      </DirectoryFolder>
-                    );
-                  })
-                ) : allQAs.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center p-6 text-center text-slate-400 dark:text-slate-500">
-                    <ChatBubbleLeftRightIcon className="h-10 w-10 mb-2 opacity-20" />
-                    <p className="text-xs leading-relaxed">
-                      Highlight an authoritative answer on a page (such as in Some Answered Questions) to pair it with its question.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="p-4 text-center text-xs italic text-slate-400">
-                    No matching Q&A pairs found.
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
       </div>
     );
   }
 
   return (
     <div className="p-4 space-y-6">
-      <div className="flex justify-between items-center pr-10">
-        <div className="flex items-center gap-2 group relative">
-          <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
-            {isViewReadOnly ? "Q&A Details" : (isEditMode ? "Edit Q&A Pair" : "Q&A Builder")}
-          </h2>
-          <QuestionMarkCircleIcon className="w-5 h-5 text-slate-400 cursor-help hover:text-slate-600 transition-colors" />
-          
-          {/* Tooltip */}
-          <div className="absolute left-0 top-full mt-2 hidden group-hover:block w-72 p-3 bg-slate-800 text-white text-xs font-normal rounded-md shadow-xl z-20 leading-relaxed dark:bg-slate-700">
-            <p className="font-bold mb-1 border-b border-slate-600 pb-1">How to use this page:</p>
-            <p>If you come across an authoritative answer to a specific question use this form to highlight it. Doing so would allow bahai.chat to provide the direct answer instead of trying to generate one.</p>
-            {/* Tooltip Arrow */}
-            <div className="absolute bottom-full left-6 border-8 border-transparent border-b-slate-800 dark:border-b-slate-700"></div>
-          </div>
-        </div>
+      <div className="flex justify-between items-center pr-20">
+        <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
+          {isViewReadOnly ? "Q&A Details" : (isEditMode ? "Edit Q&A Pair" : "Q&A Builder")}
+        </h2>
       </div>
 
       {/* QUESTION INPUT */}

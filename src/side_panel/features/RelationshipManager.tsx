@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { QuestionMarkCircleIcon, ArrowsRightLeftIcon, LinkIcon, ArrowsUpDownIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
-import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/solid';
+import { LinkIcon as LinkOutlineIcon, ArrowsUpDownIcon } from '@heroicons/react/24/outline';
+import { LinkIcon, MagnifyingGlassIcon } from '@heroicons/react/24/solid';
 import { useSelection } from '@/side_panel/context/SelectionContext';
 import { useAuth } from '@/side_panel/context/AuthContext';
-import { PinnedPageSection, DirectoryFolder } from '@/side_panel/components/StackedDirectory';
+import { BottomPageSection, DirectoryFolder } from '@/side_panel/components/StackedDirectory';
 import { useApi } from '@/hooks/useApi';
 import { StagedItem } from '@/utils/types';
 
@@ -31,7 +31,6 @@ export const RelationshipManager = () => {
   const [allRelationships, setAllRelationships] = useState<any[]>([]);
   const [loadingAll, setLoadingAll] = useState(true);
   const [filterText, setFilterText] = useState('');
-  const [directoryOpen, setDirectoryOpen] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [listRefreshKey, setListRefreshKey] = useState(0);
   const [currentPageId, setCurrentPageId] = useState<number>(0);
@@ -85,8 +84,18 @@ export const RelationshipManager = () => {
 
     fetchStats();
 
-    return () => { isMounted = false; };
-  }, [refreshTrigger, workspaceKey]);
+    const handleRuntimeMsg = (msg: any) => {
+      if (msg.type === 'PAGE_UNITS_UPDATED') {
+        fetchStats();
+      }
+    };
+    chrome.runtime.onMessage.addListener(handleRuntimeMsg);
+
+    return () => {
+      isMounted = false;
+      chrome.runtime.onMessage.removeListener(handleRuntimeMsg);
+    };
+  }, [refreshTrigger, workspaceKey, listRefreshKey]);
 
   useEffect(() => {
     let isMounted = true;
@@ -335,7 +344,7 @@ export const RelationshipManager = () => {
     const canDeleteLink = !isReadOnly && isDedicatedLinkNode && Boolean((selectedUnit as any).can_delete);
     return (
       <div className="p-4 space-y-4">
-         <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
+         <h2 className="text-lg font-bold text-slate-800 pr-20 dark:text-slate-100">
            {canDeleteLink ? 'Manage Link' : 'Link Details'}
          </h2>
          <div className="p-4 bg-slate-100 rounded border border-slate-300 dark:bg-slate-900 dark:border-slate-700">
@@ -370,15 +379,8 @@ export const RelationshipManager = () => {
   if (!isReadOnly && (subject || object || currentSelection)) {
     return (
         <div className="p-4 space-y-6">
-        <div className="flex items-center gap-2 group relative">
+        <div className="flex items-center pr-20">
             <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Knowledge Linker</h2>
-            <QuestionMarkCircleIcon className="w-5 h-5 text-slate-400 cursor-help hover:text-slate-600 transition-colors" />
-
-            <div className="absolute left-0 top-full mt-2 hidden group-hover:block w-72 p-3 bg-slate-800 text-white text-xs font-normal rounded-md shadow-xl z-20 leading-relaxed dark:bg-slate-700">
-            <p className="font-bold mb-1 border-b border-slate-600 pb-1">How to use this page:</p>
-            <p>This tab could be used to link a specific Hidden Word to the commentary or explanations about it. These connections inform bahai.chat as it's answering questions on that particular topic.</p>
-            <div className="absolute bottom-full left-6 border-8 border-transparent border-b-slate-800 dark:border-b-slate-700"></div>
-            </div>
         </div>
         
         {/* SUBJECT */}
@@ -489,10 +491,14 @@ export const RelationshipManager = () => {
     );
   }
 
-  const renderRelCard = (rel: any, idx: number, showTitles = false) => (
-    <div key={`${rel.subject_unit_id}-${rel.object_unit_id}-${idx}`} className="flex flex-col rounded border shadow-sm bg-white overflow-hidden dark:bg-slate-950 dark:border-slate-700">
+  const renderRelRow = (rel: any, idx: number, showTitles = false) => (
+    <div
+      key={`${rel.subject_unit_id}-${rel.object_unit_id}-${idx}`}
+      className="ml-3 pl-2.5 py-1.5 border-l-2 border-slate-200 dark:border-slate-800 space-y-1 text-xs"
+    >
       {/* SUBJECT (Top) */}
-      <button 
+      <button
+        type="button"
         onClick={() => handleJumpToUnit({
           id: rel.subject_unit_id,
           source_code: rel.subject_source_code,
@@ -501,27 +507,26 @@ export const RelationshipManager = () => {
           text_content: rel.subject_text,
           connected_anchors: rel.subject_anchors
         })}
-        className="w-full text-left p-2 bg-blue-50 hover:bg-blue-100 transition-colors border-b border-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 dark:border-blue-900/40"
+        className="w-full text-left py-1 px-1.5 rounded hover:bg-blue-50/80 transition-colors dark:hover:bg-blue-900/20"
       >
-        <div className="flex items-center justify-between gap-2 mb-1">
-          <span className="text-[10px] font-bold text-blue-600 bg-blue-100 px-1.5 rounded uppercase inline-block dark:text-blue-300 dark:bg-blue-900/60">Subject</span>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10px] font-bold text-blue-600 uppercase dark:text-blue-400">Subject</span>
           {showTitles && rel.subject_page_title && (
-            <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{rel.subject_page_title}</span>
+            <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{rel.subject_page_title}</span>
           )}
         </div>
-        <p className="text-xs text-slate-700 font-serif italic line-clamp-2 dark:text-slate-300">"{rel.subject_text}"</p>
+        <p className="text-xs text-slate-600 font-serif italic line-clamp-2 dark:text-slate-300">"{rel.subject_text}"</p>
       </button>
 
       {/* CONNECTOR (Middle) */}
-      <div className="flex justify-center items-center py-1 bg-slate-50 border-b border-slate-100 dark:bg-slate-900 dark:border-slate-800">
-        <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase dark:text-slate-500">
-          <ArrowsUpDownIcon className="w-3 h-3" />
-          <span>{rel.relationship_type}</span>
-        </div>
+      <div className="flex items-center gap-1 pl-1.5 text-[10px] font-bold text-slate-400 uppercase dark:text-slate-500">
+        <ArrowsUpDownIcon className="w-3 h-3" />
+        <span>{rel.relationship_type}</span>
       </div>
 
       {/* OBJECT (Bottom) */}
-      <button 
+      <button
+        type="button"
         onClick={() => handleJumpToUnit({
           id: rel.object_unit_id,
           source_code: rel.object_source_code,
@@ -530,107 +535,92 @@ export const RelationshipManager = () => {
           text_content: rel.object_text,
           connected_anchors: rel.object_anchors
         })}
-        className="w-full text-left p-2 bg-green-50 hover:bg-green-100 transition-colors dark:bg-green-900/20 dark:hover:bg-green-900/40"
+        className="w-full text-left py-1 px-1.5 rounded hover:bg-emerald-50/80 transition-colors dark:hover:bg-emerald-900/20"
       >
-        <div className="flex items-center justify-between gap-2 mb-1">
-          <span className="text-[10px] font-bold text-green-700 bg-green-100 px-1.5 rounded uppercase inline-block dark:text-green-300 dark:bg-green-900/60">Object</span>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10px] font-bold text-emerald-600 uppercase dark:text-emerald-400">Object</span>
           {showTitles && rel.object_page_title && (
-            <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{rel.object_page_title}</span>
+            <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{rel.object_page_title}</span>
           )}
         </div>
-        <p className="text-xs text-slate-700 font-serif italic line-clamp-2 dark:text-slate-300">"{rel.object_text}"</p>
+        <p className="text-xs text-slate-600 font-serif italic line-clamp-2 dark:text-slate-300">"{rel.object_text}"</p>
       </button>
     </div>
   );
 
   // --- LIST MODE ---
   return (
-    <div className="p-4 space-y-3 h-full flex flex-col overflow-hidden">
-        {/* Header (Unchanged) */}
-        <div className="flex justify-between items-center pr-10 flex-shrink-0">
-            <div className="flex items-center gap-2 group relative">
-                <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
-                    Relationship Manager
-                </h2>
-                <QuestionMarkCircleIcon className="w-5 h-5 text-slate-400 cursor-help hover:text-slate-600 transition-colors" />
-                
-                <div className="absolute left-0 top-full mt-2 hidden group-hover:block w-72 p-3 bg-slate-800 text-white text-xs font-normal rounded-md shadow-xl z-20 leading-relaxed dark:bg-slate-700">
-                    <p className="font-bold mb-1 border-b border-slate-600 pb-1">How to use this page:</p>
-                    <p>Connect two pieces of text (Subject & Object) to define a relationship like "Commentary on" or "Translation of".</p>
+    <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950">
+        {/* Header */}
+        <div className="p-3 bg-white border-b border-slate-200 shadow-sm z-10 space-y-3 dark:bg-slate-900 dark:border-slate-800">
+            <div className="flex bg-slate-100 p-1 rounded-lg mr-20 dark:bg-slate-800">
+                <div className="flex-1 flex items-center justify-center py-1.5 text-xs font-semibold rounded-md bg-white text-blue-600 shadow-sm dark:bg-slate-700 dark:text-blue-400">
+                    <LinkIcon className="w-3 h-3 mr-1" />
+                    All Linked Passages ({allRelationships.length})
+                </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                    <MagnifyingGlassIcon className="absolute left-2 top-2.5 h-4 w-4 text-slate-400 dark:text-slate-500" />
+                    <input
+                        type="text"
+                        placeholder="Filter linked texts, titles, or types..."
+                        value={filterText}
+                        onChange={(e) => setFilterText(e.target.value)}
+                        className="w-full pl-8 pr-2 py-2 text-sm border rounded bg-slate-50 focus:bg-white focus:ring-1 focus:ring-blue-500 outline-none dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 dark:focus:bg-slate-950"
+                    />
                 </div>
             </div>
         </div>
 
-        {relationships.length > 0 && (
-            <PinnedPageSection
-                label={`This page contains: ${relationships.length} link${relationships.length !== 1 ? 's' : ''}`}
-                accent="slate"
-            >
-                {relationships.map((rel, idx) => renderRelCard(rel, idx, false))}
-            </PinnedPageSection>
-        )}
-
-        <div className="flex-1 min-h-0 flex flex-col bg-white rounded border border-slate-200 overflow-hidden dark:bg-slate-900 dark:border-slate-800">
-            <button
-                type="button"
-                onClick={() => setDirectoryOpen(prev => !prev)}
-                className="w-full flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs font-bold uppercase tracking-wide text-slate-600 dark:bg-slate-800/70 dark:border-slate-800 dark:text-slate-300 flex-shrink-0"
-            >
-                <span>All Linked Passages ({allRelationships.length})</span>
-                {directoryOpen ? <ChevronDownIcon className="w-3.5 h-3.5" /> : <ChevronRightIcon className="w-3.5 h-3.5" />}
-            </button>
-
-            {directoryOpen && (
-                <>
-                    <div className="p-2 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
-                        <div className="relative">
-                            <MagnifyingGlassIcon className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
-                            <input
-                                type="text"
-                                placeholder="Filter linked texts, titles, or types..."
-                                value={filterText}
-                                onChange={(e) => setFilterText(e.target.value)}
-                                className="w-full pl-8 pr-2 py-1.5 text-xs border border-slate-200 rounded bg-slate-50 focus:bg-white focus:ring-1 focus:ring-blue-500 outline-none dark:bg-slate-950 dark:border-slate-700 dark:text-slate-200"
-                            />
-                        </div>
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-2">
+            <div className="pb-10 px-2">
+                {loadingAll ? (
+                    <div className="p-4 text-xs text-slate-400">Loading...</div>
+                ) : groupedRelationships.length > 0 ? (
+                    groupedRelationships.map(([groupName, items]) => {
+                        const isOpen = Boolean(filterText.trim()) || expandedGroups.has(groupName);
+                        return (
+                            <DirectoryFolder
+                                key={groupName}
+                                label={groupName}
+                                count={items.length}
+                                isOpen={isOpen}
+                                onToggle={() => toggleGroup(groupName)}
+                            >
+                                <div className="space-y-1.5">
+                                    {items.map((rel: any, idx: number) => renderRelRow(rel, idx, true))}
+                                </div>
+                            </DirectoryFolder>
+                        );
+                    })
+                ) : allRelationships.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center p-8 text-center text-slate-400 dark:text-slate-500">
+                        <LinkOutlineIcon className="h-10 w-10 mb-2 opacity-20" />
+                        <p className="text-xs max-w-xs leading-relaxed">
+                            Select text on the page to begin linking it to another concept or explanation.
+                        </p>
                     </div>
-
-                    <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
-                        {loadingAll ? (
-                            <div className="p-4 text-center text-xs text-slate-400">Loading links...</div>
-                        ) : groupedRelationships.length > 0 ? (
-                            groupedRelationships.map(([groupName, items]) => {
-                                const isOpen = Boolean(filterText.trim()) || expandedGroups.has(groupName);
-                                return (
-                                    <DirectoryFolder
-                                        key={groupName}
-                                        label={groupName}
-                                        count={items.length}
-                                        isOpen={isOpen}
-                                        onToggle={() => toggleGroup(groupName)}
-                                    >
-                                        <div className="space-y-2">
-                                            {items.map((rel: any, idx: number) => renderRelCard(rel, idx, true))}
-                                        </div>
-                                    </DirectoryFolder>
-                                );
-                            })
-                        ) : allRelationships.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center p-6 text-center text-slate-400 dark:text-slate-500">
-                                <LinkIcon className="h-10 w-10 mb-2 opacity-20" />
-                                <p className="text-xs max-w-xs leading-relaxed">
-                                    Select text on the page to begin linking it to another concept or explanation.
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="p-4 text-center text-xs italic text-slate-400">
-                                No matching links found.
-                            </div>
-                        )}
+                ) : (
+                    <div className="p-8 text-center text-slate-400 text-xs italic">
+                        No matching links found.
                     </div>
-                </>
-            )}
+                )}
+            </div>
         </div>
+
+        {/* Bottom Page Summary */}
+        {relationships.length > 0 && (
+            <BottomPageSection
+                label={`This page contains: ${relationships.length} link${relationships.length !== 1 ? 's' : ''}`}
+            >
+                <div className="space-y-2">
+                    {relationships.map((rel, idx) => renderRelRow(rel, idx, false))}
+                </div>
+            </BottomPageSection>
+        )}
     </div>
   );
 };

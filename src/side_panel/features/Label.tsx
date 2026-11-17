@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { PencilSquareIcon, QuestionMarkCircleIcon, DocumentTextIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
-import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/solid';
+import { PencilSquareIcon as PencilOutlineIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
+import { PencilSquareIcon, MagnifyingGlassIcon } from '@heroicons/react/24/solid';
 import { useSelection } from '@/side_panel/context/SelectionContext';
 import { useAuth } from '@/side_panel/context/AuthContext';
 import { UnitForm } from '@/side_panel/components/UnitForm';
-import { PinnedPageSection, DirectoryFolder } from '@/side_panel/components/StackedDirectory';
+import { BottomPageSection, DirectoryFolder } from '@/side_panel/components/StackedDirectory';
 import { useApi } from '@/hooks/useApi';
 import { LogicalUnit } from '@/utils/types';
 
@@ -18,7 +18,6 @@ export const Label = () => {
   const [allUnits, setAllUnits] = useState<any[]>([]);
   const [loadingAll, setLoadingAll] = useState(true);
   const [filterText, setFilterText] = useState('');
-  const [directoryOpen, setDirectoryOpen] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [listRefreshKey, setListRefreshKey] = useState(0);
 
@@ -48,6 +47,20 @@ export const Label = () => {
         setPageUnits([]);
     }
 
+    const filterLabelUnits = (units: any[]) =>
+        (units || [])
+            .filter((u: any) => !['user_highlight', 'canonical_answer', 'link_subject', 'link_object'].includes(u.unit_type))
+            .map((u: any) => ({
+                id: u.id,
+                text_content: (u.text_content || '').replace(/\s+/g, ' ').substring(0, 100),
+                unit_type: u.unit_type,
+                author: u.author,
+                source_code: u.source_code,
+                source_page_id: u.source_page_id,
+                title: u.title,
+                connected_anchors: u.connected_anchors || []
+            }));
+
     const fetchStats = async (retryCount = 0) => {
         // Don't fetch if we are in the middle of creating/editing
         if (currentSelection || selectedUnit) return;
@@ -58,21 +71,25 @@ export const Label = () => {
 
             const res = await chrome.tabs.sendMessage(tab.id, { type: 'GET_CACHED_STATS' }).catch(() => null);
             
-            // CRITICAL CHANGE: We must verify 'source_code' exists to confirm the scraper 
-            // has finished processing the new page.
-            const hasContext = res && (res.source_code || (res.units && res.units.length > 0));
-
-            if (hasContext) {
+            // CRITICAL CHANGE: For MediaWiki pages, query the API directly once source_code + source_page_id are scraped;
+            // for Bahai.org ('lib'), wait until highlighter.ts finishes its anchor batch load (`res.loaded`).
+            if (res && res.source_code && res.source_code !== 'lib' && res.source_page_id) {
+                const apiUnits = await get(`/api/units?source_code=${encodeURIComponent(res.source_code)}&source_page_id=${encodeURIComponent(String(res.source_page_id))}`);
                 if (isMounted) {
-                    setPageUnits(res.units.filter((u: any) => 
-                        !['user_highlight', 'canonical_answer', 'link_subject', 'link_object'].includes(u.unit_type)
-                    ));
+                    setPageUnits(filterLabelUnits(apiUnits));
                 }
                 return; // Success
             }
 
-            // Retry Logic: 250ms delay, max 8 tries
-            if (retryCount < 8 && isMounted) {
+            if (res && res.source_code === 'lib' && res.loaded) {
+                if (isMounted) {
+                    setPageUnits(filterLabelUnits(res.units));
+                }
+                return; // Success
+            }
+
+            // Retry Logic: 250ms delay, max 10 tries
+            if (retryCount < 10 && isMounted) {
                 setTimeout(() => fetchStats(retryCount + 1), 250);
             } else if (isMounted) {
                 setPageUnits([]); // Give up
@@ -84,8 +101,18 @@ export const Label = () => {
     
     fetchStats();
 
-    return () => { isMounted = false; };
-  }, [refreshTrigger, workspaceKey]);
+    const handleRuntimeMsg = (msg: any) => {
+        if (msg.type === 'PAGE_UNITS_UPDATED') {
+            fetchStats();
+        }
+    };
+    chrome.runtime.onMessage.addListener(handleRuntimeMsg);
+
+    return () => {
+        isMounted = false;
+        chrome.runtime.onMessage.removeListener(handleRuntimeMsg);
+    };
+  }, [refreshTrigger, workspaceKey, listRefreshKey]);
 
   useEffect(() => {
     let isMounted = true;
@@ -165,7 +192,7 @@ export const Label = () => {
   if (repairTarget && !isReadOnly) {
       return (
           <div className="p-4 space-y-6">
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center pr-20">
                  <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Repair Unit</h2>
               </div>
               <UnitForm 
@@ -186,7 +213,7 @@ export const Label = () => {
     const canEditUnit = !isReadOnly && (selectedUnit.can_delete ?? true);
     return (
       <div className="p-4 space-y-6">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center pr-20">
              <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
                {canEditUnit ? 'Edit Unit' : 'Unit Details'}
              </h2>
@@ -206,7 +233,7 @@ export const Label = () => {
   if (currentSelection && !isReadOnly) {
     return (
       <div className="p-4 space-y-6">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center pr-20">
              <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">New Addition</h2>
         </div>
         <UnitForm 
@@ -223,129 +250,106 @@ export const Label = () => {
 
   // 4. Idle State
   return (
-    <div className="p-4 space-y-3 h-full flex flex-col overflow-hidden">
-        <div className="flex justify-between items-center pr-10 flex-shrink-0">
-            <div className="flex items-center gap-2 group relative">
-                <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
-                    Label Manager
-                </h2>
-                <QuestionMarkCircleIcon className="w-5 h-5 text-slate-400 cursor-help hover:text-slate-600 transition-colors" />
-                
-                <div className="absolute left-0 top-full mt-2 hidden group-hover:block w-72 p-3 bg-slate-800 text-white text-xs font-normal rounded-md shadow-xl z-20 leading-relaxed dark:bg-slate-700">
-                    <p className="font-bold mb-1 border-b border-slate-600 pb-1">How to use this page:</p>
-                    <p>Highlight a tablet, prayer, or historical account to label it.</p>
-                    <div className="absolute bottom-full left-6 border-8 border-transparent border-b-slate-800 dark:border-b-slate-700"></div>
+    <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950">
+        {/* Header */}
+        <div className="p-3 bg-white border-b border-slate-200 shadow-sm z-10 space-y-3 dark:bg-slate-900 dark:border-slate-800">
+            <div className="flex bg-slate-100 p-1 rounded-lg mr-20 dark:bg-slate-800">
+                <div className="flex-1 flex items-center justify-center py-1.5 text-xs font-semibold rounded-md bg-white text-blue-600 shadow-sm dark:bg-slate-700 dark:text-blue-400">
+                    <PencilSquareIcon className="w-3 h-3 mr-1" />
+                    All Labeled Items ({allUnits.length})
+                </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                    <MagnifyingGlassIcon className="absolute left-2 top-2.5 h-4 w-4 text-slate-400 dark:text-slate-500" />
+                    <input
+                        type="text"
+                        placeholder="Filter by work, author, type, or text..."
+                        value={filterText}
+                        onChange={(e) => setFilterText(e.target.value)}
+                        className="w-full pl-8 pr-2 py-2 text-sm border rounded bg-slate-50 focus:bg-white focus:ring-1 focus:ring-blue-500 outline-none dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 dark:focus:bg-slate-950"
+                    />
                 </div>
             </div>
         </div>
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-2">
+            <div className="pb-10 px-2">
+                {loadingAll ? (
+                    <div className="p-4 text-xs text-slate-400">Loading...</div>
+                ) : groupedUnits.length > 0 ? (
+                    groupedUnits.map(([groupName, items]) => {
+                        const isOpen = Boolean(filterText.trim()) || expandedGroups.has(groupName);
+                        return (
+                            <DirectoryFolder
+                                key={groupName}
+                                label={groupName}
+                                count={items.length}
+                                isOpen={isOpen}
+                                onToggle={() => toggleGroup(groupName)}
+                            >
+                                {items.map((unit: any) => (
+                                    <div
+                                        key={unit.id}
+                                        onClick={() => handleUnitJump(unit)}
+                                        className="ml-3 py-1.5 px-2 cursor-pointer transition-all duration-200 border-l-2 border-transparent hover:border-blue-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/50 text-xs"
+                                    >
+                                        <div className="flex items-center text-slate-600 dark:text-slate-300 truncate">
+                                            <span className="w-3 inline-block flex-shrink-0 mr-1.5 opacity-50 text-[10px]">📄</span>
+                                            <span className="truncate font-serif italic">"{unit.text_content}"</span>
+                                        </div>
+                                        <div className="pl-4 text-[10px] text-slate-400 dark:text-slate-500 truncate">
+                                            {unit.author || 'Unknown'} • {capitalize(unit.unit_type)}
+                                            {unit._subTitle ? ` • ${unit._subTitle}` : ''}
+                                        </div>
+                                    </div>
+                                ))}
+                            </DirectoryFolder>
+                        );
+                    })
+                ) : allUnits.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center p-8 text-center text-slate-400 dark:text-slate-500">
+                        <PencilOutlineIcon className="h-10 w-10 mb-2 opacity-20" />
+                        <p className="text-xs leading-relaxed">
+                            This tab could be used to highlight a tablet from ‘Abdu’l-Bahá in Star of the West or letter from the Guardian in Bahá’í News.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="p-8 text-center text-slate-400 text-xs italic">
+                        No matching items found.
+                    </div>
+                )}
+            </div>
+        </div>
 
+        {/* Bottom Page Summary */}
         {pageUnits.length > 0 && (
-            <PinnedPageSection
+            <BottomPageSection
                 label={`This page contains: ${pageUnits.length} Unit${pageUnits.length !== 1 ? 's' : ''}`}
-                accent="blue"
             >
                 {pageUnits.map(unit => (
                     <button 
                         key={unit.id}
                         onClick={() => handleUnitJump(unit)}
-                        className="w-full text-left bg-white p-2 rounded border border-blue-100 shadow-sm hover:shadow-md hover:border-blue-300 transition-all group flex flex-col gap-1 dark:bg-slate-950 dark:border-slate-800 dark:hover:border-blue-700"
+                        className="w-full text-left py-1.5 px-2 rounded hover:bg-slate-100 transition-colors group flex flex-col gap-0.5 dark:hover:bg-slate-800"
                     >
                         <div className="flex items-start gap-2">
-                            <DocumentTextIcon className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0 group-hover:text-blue-600" />
+                            <DocumentTextIcon className="w-3.5 h-3.5 text-blue-400 mt-0.5 flex-shrink-0 group-hover:text-blue-600" />
                             <span className="text-xs text-slate-600 font-serif italic line-clamp-2 group-hover:text-slate-800 break-words dark:text-slate-300 dark:group-hover:text-slate-100">
                                 "{unit.text_content}"
                             </span>
                         </div>
-                        
                         {/* CLEAN METADATA LINE */}
-                        <div className="w-full text-right mt-1 border-t border-slate-50 pt-1 dark:border-slate-800">
-                            <span className="text-[10px] text-slate-500 group-hover:text-blue-600 font-medium dark:text-slate-400 dark:group-hover:text-blue-400">
-                                Author: {unit.author || 'Unknown'}
-                                <span className="mx-1">•</span>
-                                Type: {capitalize(unit.unit_type)}
-                            </span>
+                        <div className="pl-5 text-[10px] text-slate-400 group-hover:text-blue-600 dark:text-slate-500 dark:group-hover:text-blue-400">
+                            Author: {unit.author || 'Unknown'}
+                            <span className="mx-1">•</span>
+                            Type: {capitalize(unit.unit_type)}
                         </div>
                     </button>
                 ))}
-            </PinnedPageSection>
+            </BottomPageSection>
         )}
-        <div className="flex-1 min-h-0 flex flex-col bg-white rounded border border-slate-200 overflow-hidden dark:bg-slate-900 dark:border-slate-800">
-            <button
-                type="button"
-                onClick={() => setDirectoryOpen(prev => !prev)}
-                className="w-full flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs font-bold uppercase tracking-wide text-slate-600 dark:bg-slate-800/70 dark:border-slate-800 dark:text-slate-300 flex-shrink-0"
-            >
-                <span>All Labeled Items ({allUnits.length})</span>
-                {directoryOpen ? <ChevronDownIcon className="w-3.5 h-3.5" /> : <ChevronRightIcon className="w-3.5 h-3.5" />}
-            </button>
-
-            {directoryOpen && (
-                <>
-                    <div className="p-2 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
-                        <div className="relative">
-                            <MagnifyingGlassIcon className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
-                            <input
-                                type="text"
-                                placeholder="Filter by work, author, type, or text..."
-                                value={filterText}
-                                onChange={(e) => setFilterText(e.target.value)}
-                                className="w-full pl-8 pr-2 py-1.5 text-xs border border-slate-200 rounded bg-slate-50 focus:bg-white focus:ring-1 focus:ring-blue-500 outline-none dark:bg-slate-950 dark:border-slate-700 dark:text-slate-200"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
-                        {loadingAll ? (
-                            <div className="p-4 text-center text-xs text-slate-400">Loading items...</div>
-                        ) : groupedUnits.length > 0 ? (
-                            groupedUnits.map(([groupName, items]) => {
-                                const isOpen = Boolean(filterText.trim()) || expandedGroups.has(groupName);
-                                return (
-                                    <DirectoryFolder
-                                        key={groupName}
-                                        label={groupName}
-                                        count={items.length}
-                                        isOpen={isOpen}
-                                        onToggle={() => toggleGroup(groupName)}
-                                    >
-                                        {items.map((unit: any) => (
-                                            <button
-                                                key={unit.id}
-                                                onClick={() => handleUnitJump(unit)}
-                                                className="w-full text-left bg-slate-50 hover:bg-blue-50/70 p-2 rounded border border-slate-200/80 hover:border-blue-200 transition-colors flex flex-col gap-1 dark:bg-slate-950 dark:border-slate-800 dark:hover:border-blue-800"
-                                            >
-                                                {unit._subTitle && (
-                                                    <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 truncate">
-                                                        {unit._subTitle}
-                                                    </span>
-                                                )}
-                                                <span className="text-xs text-slate-600 font-serif italic line-clamp-2 dark:text-slate-300">
-                                                    "{unit.text_content}"
-                                                </span>
-                                                <span className="text-[10px] text-slate-400 dark:text-slate-500">
-                                                    {unit.author || 'Unknown'} • {capitalize(unit.unit_type)}
-                                                </span>
-                                            </button>
-                                        ))}
-                                    </DirectoryFolder>
-                                );
-                            })
-                        ) : allUnits.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center p-6 text-center text-slate-400 dark:text-slate-500">
-                                <PencilSquareIcon className="h-10 w-10 mb-2 opacity-20" />
-                                <p className="text-xs leading-relaxed">
-                                    This tab could be used to highlight a tablet from ‘Abdu’l-Bahá in Star of the West or letter from the Guardian in Bahá’í News.
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="p-4 text-center text-xs italic text-slate-400">
-                                No matching items found.
-                            </div>
-                        )}
-                    </div>
-                </>
-            )}
-        </div>
     </div>
   );
 };

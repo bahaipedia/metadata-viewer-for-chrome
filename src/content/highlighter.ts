@@ -5,6 +5,7 @@ import { CURRENT_SITE } from '@/utils/site_config';
 
 // --- Global State for Highlighter ---
 let cachedUnits: LogicalUnit[] = [];
+let hasLoadedUnits: boolean = false;
 let currentMode: string = 'TAXONOMY_MODE';
 let pendingScrollId: number | null = null;
 const fetchedIds = new Set<string>();
@@ -51,6 +52,7 @@ export const initHighlighter = async () => {
                 source_code: meta.source_code,
                 source_page_id: meta.source_page_id,
                 title: meta.title,
+                loaded: hasLoadedUnits,
                 units
             });
             return true;
@@ -61,9 +63,11 @@ export const initHighlighter = async () => {
                 ...cachedUnits.filter(u => !incomingIds.has(u.id)), 
                 ...request.units
             ];
+            hasLoadedUnits = true;
             // Re-run healer only on new units if needed, or just render
             if (CURRENT_SITE.code !== 'lib') verifyAndHealUnits(); 
             renderHighlights(); 
+            chrome.runtime.sendMessage({ type: 'PAGE_UNITS_UPDATED' }).catch(() => {});
         }
         if (request.type === 'TRIGGER_DATA_RELOAD') {
             if (CURRENT_SITE.code === 'lib') {
@@ -94,6 +98,7 @@ export const initHighlighter = async () => {
             }
             if (changes.api_token || changes.showcase_mode) {
                 cachedUnits = [];
+                hasLoadedUnits = false;
                 fetchedIds.clear();
                 renderBrokenLinksFooter([]);
                 renderHighlights();
@@ -130,8 +135,10 @@ const fetchAndRenderPage = async () => {
 
     if (response && response.units) {
         cachedUnits = response.units;
+        hasLoadedUnits = true;
         await verifyAndHealUnits();
         renderHighlights(); 
+        chrome.runtime.sendMessage({ type: 'PAGE_UNITS_UPDATED' }).catch(() => {});
     }
 };
 
@@ -178,7 +185,10 @@ const scanAndFetchLibIds = async (forceRefresh = false) => {
         }
     });
 
-    if (idsToFetch.length === 0) return;
+    if (idsToFetch.length === 0) {
+        hasLoadedUnits = true;
+        return;
+    }
 
     console.log(`[Highlighter] Batch fetching ${idsToFetch.length} IDs...`);
 
@@ -208,7 +218,9 @@ const scanAndFetchLibIds = async (forceRefresh = false) => {
             cachedUnits = [...cachedUnits, ...uniqueNew];
         }
 
+        hasLoadedUnits = true;
         renderHighlights();
+        chrome.runtime.sendMessage({ type: 'PAGE_UNITS_UPDATED' }).catch(() => {});
     }
 };
 

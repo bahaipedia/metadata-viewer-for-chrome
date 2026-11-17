@@ -8,6 +8,7 @@ import {
   SunIcon,
   MoonIcon,
   Cog6ToothIcon,
+  QuestionMarkCircleIcon,
   ArrowRightOnRectangleIcon,
   UserCircleIcon,
   EyeIcon
@@ -22,7 +23,6 @@ export const MainLayout = () => {
     userInfo,
     showcaseMode,
     isShowcaseOwner,
-    isReadOnly,
     openLogin,
     setShowcaseMode,
     logout
@@ -30,6 +30,7 @@ export const MainLayout = () => {
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
+  const lastTabPathRef = useRef<string>('/');
 
   useEffect(() => {
     chrome.storage.local.get(['theme'], (res) => {
@@ -65,6 +66,9 @@ export const MainLayout = () => {
 
   // --- NEW: Broadcast Tab Change to Content Script ---
   useEffect(() => {
+    if (location.pathname === '/help') return;
+    lastTabPathRef.current = location.pathname;
+
     const getMode = (path: string) => {
       switch (path) {
         case '/': return 'TAXONOMY_MODE';
@@ -80,6 +84,22 @@ export const MainLayout = () => {
 
   }, [location.pathname]);
 
+  const handleHelpClick = () => {
+    setSettingsOpen(false);
+    if (location.pathname === '/help') {
+      navigate(lastTabPathRef.current || '/');
+      return;
+    }
+    const sectionMap: Record<string, string> = {
+      '/': 'tags',
+      '/label': 'label',
+      '/qa': 'qa',
+      '/relations': 'link'
+    };
+    const section = sectionMap[location.pathname] || 'overview';
+    navigate(`/help?section=${section}&from=${encodeURIComponent(location.pathname)}`);
+  };
+
   const getTabClass = (path: string) => 
     location.pathname === path 
       ? "text-blue-600" 
@@ -87,19 +107,27 @@ export const MainLayout = () => {
 
   return (
     <div className="relative flex flex-col h-screen bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-200">
-      <div ref={settingsRef} className="fixed top-3 right-3 z-50">
+      <div ref={settingsRef} className="fixed top-3 right-3 z-50 flex items-center gap-1.5">
         <button
+          type="button"
+          onClick={handleHelpClick}
+          title="Help & Guide"
+          className={`p-2 rounded-full backdrop-blur border shadow-sm transition-colors ${
+            location.pathname === '/help'
+              ? 'bg-blue-600 border-blue-600 text-white'
+              : 'bg-white/90 dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400'
+          }`}
+        >
+          <QuestionMarkCircleIcon className="h-4 w-4" />
+        </button>
+
+        <button
+          type="button"
           onClick={() => setSettingsOpen(prev => !prev)}
           title="Settings & Account"
           className="relative p-2 rounded-full bg-white/90 dark:bg-slate-800/90 backdrop-blur border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 shadow-sm transition-colors"
         >
           <Cog6ToothIcon className="h-4 w-4" />
-          {isReadOnly && (
-            <span
-              title="Viewing Sample Data (Read-Only)"
-              className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-amber-500 ring-2 ring-white dark:ring-slate-900"
-            />
-          )}
         </button>
 
         {settingsOpen && (

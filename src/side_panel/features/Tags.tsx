@@ -24,10 +24,11 @@ const CANONICAL_AUTHORS = [
 
 export const Tags = () => {
   const { currentSelection, clearSelection } = useSelection();
-  const { isReadOnly, workspaceKey } = useAuth();
+  const { isAuthenticated, isReadOnly, workspaceKey, openLogin } = useAuth();
   const { post, put, del, get } = useApi();
   
   const [viewMode, setViewMode] = useState<'tree' | 'flat'>('tree');
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false);
   const tagNameInputRef = useRef<HTMLInputElement>(null);
   // Header State
   const [filterText, setFilterText] = useState('');
@@ -597,7 +598,7 @@ export const Tags = () => {
       
       {/* Header */}
       <div className="p-3 bg-white border-b border-slate-200 shadow-sm z-10 space-y-3 dark:bg-slate-900 dark:border-slate-800">
-        <div className="flex bg-slate-100 p-1 rounded-lg mr-10 dark:bg-slate-800">
+        <div className="flex bg-slate-100 p-1 rounded-lg mr-20 dark:bg-slate-800">
           {/* Button 1: Taxonomy Tree */}
           <button
             onClick={() => setViewMode('tree')}
@@ -672,6 +673,32 @@ export const Tags = () => {
 
       {/* Tree */}
       <div className="flex-1 overflow-y-auto p-2">
+        {!isAuthenticated && !welcomeDismissed && (
+          <div className="mx-2 mt-1 mb-2.5 p-3 rounded-lg bg-blue-50/80 border border-blue-200/80 text-xs text-slate-700 relative dark:bg-blue-950/30 dark:border-blue-800/60 dark:text-slate-300">
+            <button
+              type="button"
+              onClick={() => setWelcomeDismissed(true)}
+              title="Dismiss"
+              className="absolute top-2 right-2 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+            >
+              <XMarkIcon className="w-3.5 h-3.5" />
+            </button>
+            <p className="font-bold text-blue-800 dark:text-blue-300 mb-1 pr-4">
+              Welcome! Exploring Example Data
+            </p>
+            <p className="leading-relaxed text-slate-600 dark:text-slate-400">
+              You are browsing a read-only example collection across every tab—click any folder or item to see how passages are organized and highlighted on the page. When you're ready,{' '}
+              <button
+                type="button"
+                onClick={openLogin}
+                className="font-semibold text-blue-600 hover:underline dark:text-blue-400"
+              >
+                log in
+              </button>{' '}
+              to start cataloging on your own.
+            </p>
+          </div>
+        )}
         <TaxonomyExplorer 
             filter={filterText} 
             viewMode={viewMode} 
