@@ -131,7 +131,7 @@ export const MainLayout = () => {
         </button>
 
         {settingsOpen && (
-          <div className="absolute right-0 mt-2 w-64 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-3 space-y-3 text-xs">
+          <div className="absolute top-full right-0 mt-2 w-64 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-3 space-y-3 text-xs">
             {!isAuthenticated ? (
               <div className="space-y-2 pb-2.5 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400 font-semibold">
