@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
+import React, { useState, useEffect, useMemo } from 'react';
+import { QuestionMarkCircleIcon, MagnifyingGlassIcon, ChatBubbleLeftRightIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/solid';
 import { useSelection } from '@/side_panel/context/SelectionContext';
+import { useAuth } from '@/side_panel/context/AuthContext';
+import { PinnedPageSection, DirectoryFolder } from '@/side_panel/components/StackedDirectory';
 import { useApi } from '@/hooks/useApi';
 import { LogicalUnit, PageMetadata } from '@/utils/types';
 
@@ -9,15 +12,95 @@ type StagedAnswer =
   | { type: 'new', text: string, offsets: { start: number, end: number }, context: PageMetadata, connected_anchors?: number[] };
 
 export const QAManager = () => {
-  const { currentSelection, selectedUnit, clearSelection } = useSelection();
+  const { currentSelection, selectedUnit, clearSelection, refreshTrigger } = useSelection();
+  const { isReadOnly, workspaceKey } = useAuth();
   const { post, del, get } = useApi();
 
   const [questionText, setQuestionText] = useState('');
   const [author, setAuthor] = useState("‘Abdu’l-Bahá");
   const [answer, setAnswer] = useState<StagedAnswer | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [isAutoDetected, setIsAutoDetected] = useState(false);
+
+  const [pageQAs, setPageQAs] = useState<any[]>([]);
+  const [allQAs, setAllQAs] = useState<any[]>([]);
+  const [loadingAll, setLoadingAll] = useState(true);
+  const [filterText, setFilterText] = useState('');
+  const [directoryOpen, setDirectoryOpen] = useState(true);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [listRefreshKey, setListRefreshKey] = useState(0);
+
+  useEffect(() => {
+    if (isReadOnly) {
+      setIsCreating(false);
+      if (answer?.type === 'new') {
+        setAnswer(null);
+      }
+    }
+  }, [isReadOnly]);
+
+  useEffect(() => {
+    let isMounted = true;
+    setPageQAs([]);
+
+    const fetchPageQAs = async (retryCount = 0) => {
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab?.id) return;
+
+        const res = await chrome.tabs.sendMessage(tab.id, { type: 'GET_CACHED_STATS' }).catch(() => null);
+        const pageSourceCode = res?.source_code || res?.units?.[0]?.source_code;
+        const pageSourcePageId = res?.source_page_id || res?.units?.[0]?.source_page_id;
+        const answerIds = Array.isArray(res?.units)
+          ? res.units.filter((u: any) => u.unit_type === 'canonical_answer').map((u: any) => u.id).filter(Boolean).join(',')
+          : '';
+
+        if ((pageSourceCode && pageSourcePageId) || answerIds) {
+          const params = new URLSearchParams();
+          if (pageSourceCode && pageSourcePageId) {
+            params.set('source_code', String(pageSourceCode));
+            params.set('source_page_id', String(pageSourcePageId));
+          }
+          if (answerIds) {
+            params.set('answer_unit_ids', answerIds);
+          }
+          const rows = await get(`/api/qa?${params.toString()}`);
+          if (isMounted) setPageQAs(Array.isArray(rows) ? rows : []);
+          return;
+        }
+
+        if (retryCount < 8 && isMounted) {
+          setTimeout(() => fetchPageQAs(retryCount + 1), 250);
+        } else if (isMounted) {
+          setPageQAs([]);
+        }
+      } catch (e) {
+        if (isMounted) setPageQAs([]);
+      }
+    };
+
+    fetchPageQAs();
+    return () => { isMounted = false; };
+  }, [refreshTrigger, workspaceKey]);
+
+  useEffect(() => {
+    let isMounted = true;
+    setLoadingAll(true);
+    get('/api/qa?scope=all')
+      .then((rows) => {
+        if (isMounted) setAllQAs(Array.isArray(rows) ? rows : []);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch all Q&A pairs", err);
+        if (isMounted) setAllQAs([]);
+      })
+      .finally(() => {
+        if (isMounted) setLoadingAll(false);
+      });
+    return () => { isMounted = false; };
+  }, [workspaceKey, listRefreshKey]);
 
   useEffect(() => {
     if (currentSelection?.context?.author && currentSelection.context.author !== 'Undefined') {
@@ -113,6 +196,7 @@ export const QAManager = () => {
     } else {
         setQuestionText('');
         setAnswer(null);
+        setIsCreating(false);
         clearSelection();
     }
   };
@@ -134,6 +218,7 @@ export const QAManager = () => {
         setAnswer(null);
         clearSelection();
         setDeleteConfirmOpen(false);
+        setListRefreshKey(prev => prev + 1);
         chrome.tabs.reload();
     } catch (e: any) {
         alert("Delete failed: " + e.message);
@@ -202,6 +287,7 @@ export const QAManager = () => {
 
       alert(answer.type === 'existing' ? "Q&A Updated!" : "Q&A Created!");
       handleCancel();
+      setListRefreshKey(prev => prev + 1);
       chrome.tabs.reload(); 
 
     } catch (e: any) {
@@ -213,14 +299,196 @@ export const QAManager = () => {
   };
   
   const isEditMode = answer?.type === 'existing';
-  const canDelete = isEditMode && (answer.unit as any).can_delete; 
+  const canDelete = !isReadOnly && isEditMode && Boolean((answer.unit as any).can_delete);
+  const isViewReadOnly = isEditMode && (isReadOnly || !canDelete);
+  const showBuilder = isEditMode || (!isReadOnly && (isCreating || Boolean(answer) || Boolean(currentSelection)));
+
+  const groupedQAs = useMemo(() => {
+    const q = filterText.trim().toLowerCase();
+    const groups = new Map<string, any[]>();
+
+    for (const item of allQAs) {
+      const fullTitle = item.title || '';
+      const [rootTitle, ...rest] = fullTitle.split('/');
+      const groupName = (item.source_book && item.source_book !== 'Unknown' && item.source_book !== 'Unknown Source')
+        ? item.source_book
+        : (rootTitle.trim() || 'General');
+      const subTitle = rest.join(' / ').trim() || fullTitle;
+
+      if (q) {
+        const hay = `${groupName} ${fullTitle} ${item.question_text || ''} ${item.answer_text || ''} ${item.author || ''}`.toLowerCase();
+        if (!hay.includes(q)) continue;
+      }
+
+      if (!groups.has(groupName)) groups.set(groupName, []);
+      groups.get(groupName)!.push({ ...item, _subTitle: subTitle });
+    }
+
+    return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [allQAs, filterText]);
+
+  const toggleGroup = (name: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const handleJumpToQA = (qa: any) => {
+    chrome.runtime.sendMessage({
+      type: 'NAVIGATE_TO_UNIT',
+      unit_id: qa.answer_unit_id,
+      source_code: qa.source_code,
+      source_page_id: qa.source_page_id,
+      title: qa.title,
+      connected_anchors: qa.connected_anchors
+    });
+  };
+
+  if (!showBuilder) {
+    return (
+      <div className="p-4 space-y-3 h-full flex flex-col overflow-hidden">
+        <div className="flex justify-between items-center pr-10 flex-shrink-0">
+          <div className="flex items-center gap-2 group relative">
+            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
+              Q&A Manager
+            </h2>
+            <QuestionMarkCircleIcon className="w-5 h-5 text-slate-400 cursor-help hover:text-slate-600 transition-colors" />
+
+            {/* Tooltip */}
+            <div className="absolute left-0 top-full mt-2 hidden group-hover:block w-72 p-3 bg-slate-800 text-white text-xs font-normal rounded-md shadow-xl z-20 leading-relaxed dark:bg-slate-700">
+              <p className="font-bold mb-1 border-b border-slate-600 pb-1">How to use this page:</p>
+              <p>If you come across an authoritative answer to a specific question use this form to highlight it. Doing so would allow bahai.chat to provide the direct answer instead of trying to generate one.</p>
+              <div className="absolute bottom-full left-6 border-8 border-transparent border-b-slate-800 dark:border-b-slate-700"></div>
+            </div>
+          </div>
+
+          {!isReadOnly && (
+            <button
+              type="button"
+              onClick={() => setIsCreating(true)}
+              className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition-colors"
+            >
+              <PlusIcon className="w-3.5 h-3.5" />
+              <span>New</span>
+            </button>
+          )}
+        </div>
+
+        {pageQAs.length > 0 && (
+          <PinnedPageSection
+            label={`This page contains: ${pageQAs.length} Q&A Pair${pageQAs.length !== 1 ? 's' : ''}`}
+            accent="emerald"
+          >
+            {pageQAs.map((qa) => (
+              <button
+                key={qa.id}
+                onClick={() => handleJumpToQA(qa)}
+                className="w-full text-left bg-white p-2 rounded border border-emerald-100 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all flex flex-col gap-1 dark:bg-slate-950 dark:border-slate-800 dark:hover:border-emerald-700"
+              >
+                <span className="text-xs font-semibold text-slate-800 line-clamp-2 dark:text-slate-200">
+                  Q: {qa.question_text}
+                </span>
+                <span className="text-xs text-slate-600 font-serif italic line-clamp-2 dark:text-slate-400">
+                  "{qa.answer_text}"
+                </span>
+                {qa.author && (
+                  <span className="text-[10px] text-right text-slate-400 dark:text-slate-500">
+                    Answer: {qa.author}
+                  </span>
+                )}
+              </button>
+            ))}
+          </PinnedPageSection>
+        )}
+
+        <div className="flex-1 min-h-0 flex flex-col bg-white rounded border border-slate-200 overflow-hidden dark:bg-slate-900 dark:border-slate-800">
+          <button
+            type="button"
+            onClick={() => setDirectoryOpen(prev => !prev)}
+            className="w-full flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs font-bold uppercase tracking-wide text-slate-600 dark:bg-slate-800/70 dark:border-slate-800 dark:text-slate-300 flex-shrink-0"
+          >
+            <span>All Q&A Pairs ({allQAs.length})</span>
+            {directoryOpen ? <ChevronDownIcon className="w-3.5 h-3.5" /> : <ChevronRightIcon className="w-3.5 h-3.5" />}
+          </button>
+
+          {directoryOpen && (
+            <>
+              <div className="p-2 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
+                <div className="relative">
+                  <MagnifyingGlassIcon className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Filter questions, answers, or books..."
+                    value={filterText}
+                    onChange={(e) => setFilterText(e.target.value)}
+                    className="w-full pl-8 pr-2 py-1.5 text-xs border border-slate-200 rounded bg-slate-50 focus:bg-white focus:ring-1 focus:ring-blue-500 outline-none dark:bg-slate-950 dark:border-slate-700 dark:text-slate-200"
+                  />
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+                {loadingAll ? (
+                  <div className="p-4 text-center text-xs text-slate-400">Loading Q&A pairs...</div>
+                ) : groupedQAs.length > 0 ? (
+                  groupedQAs.map(([groupName, items]) => {
+                    const isOpen = Boolean(filterText.trim()) || expandedGroups.has(groupName);
+                    return (
+                      <DirectoryFolder
+                        key={groupName}
+                        label={groupName}
+                        count={items.length}
+                        isOpen={isOpen}
+                        onToggle={() => toggleGroup(groupName)}
+                      >
+                        {items.map((qa: any) => (
+                          <button
+                            key={qa.id}
+                            onClick={() => handleJumpToQA(qa)}
+                            className="w-full text-left bg-slate-50 hover:bg-blue-50/70 p-2 rounded border border-slate-200/80 hover:border-blue-200 transition-colors flex flex-col gap-1 dark:bg-slate-950 dark:border-slate-800 dark:hover:border-blue-800"
+                          >
+                            <span className="text-xs font-semibold text-slate-700 line-clamp-2 dark:text-slate-200">
+                              Q: {qa.question_text}
+                            </span>
+                            <span className="text-xs text-slate-600 font-serif italic line-clamp-2 dark:text-slate-400">
+                              "{qa.answer_text}"
+                            </span>
+                            <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
+                              {qa.author || 'Unknown'}{qa._subTitle && qa._subTitle !== groupName ? ` • ${qa._subTitle}` : ''}
+                            </span>
+                          </button>
+                        ))}
+                      </DirectoryFolder>
+                    );
+                  })
+                ) : allQAs.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center p-6 text-center text-slate-400 dark:text-slate-500">
+                    <ChatBubbleLeftRightIcon className="h-10 w-10 mb-2 opacity-20" />
+                    <p className="text-xs leading-relaxed">
+                      Highlight an authoritative answer on a page (such as in Some Answered Questions) to pair it with its question.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-4 text-center text-xs italic text-slate-400">
+                    No matching Q&A pairs found.
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center pr-10">
         <div className="flex items-center gap-2 group relative">
           <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
-            {isEditMode ? "Edit Q&A Pair" : "Q&A Builder"}
+            {isViewReadOnly ? "Q&A Details" : (isEditMode ? "Edit Q&A Pair" : "Q&A Builder")}
           </h2>
           <QuestionMarkCircleIcon className="w-5 h-5 text-slate-400 cursor-help hover:text-slate-600 transition-colors" />
           
@@ -239,10 +507,11 @@ export const QAManager = () => {
         <label className="text-xs font-bold text-slate-500 dark:text-slate-400">QUESTION</label>
         <div className="relative">
             <textarea 
-            className="w-full p-2 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 min-h-[80px] dark:bg-slate-950 dark:border-slate-700 dark:text-slate-200"
+            className="w-full p-2 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 min-h-[80px] disabled:bg-slate-100 dark:bg-slate-950 dark:border-slate-700 dark:text-slate-200 dark:disabled:bg-slate-900"
             placeholder="Type the question here..."
             value={questionText}
             onChange={(e) => setQuestionText(e.target.value)}
+            disabled={isViewReadOnly}
             />
             {!isEditMode && !questionText && (
                 <button 
@@ -264,7 +533,7 @@ export const QAManager = () => {
           className="w-full p-2 text-sm border rounded bg-white disabled:bg-slate-100 disabled:text-slate-500 dark:bg-slate-950 dark:border-slate-700 dark:text-slate-200 dark:disabled:bg-slate-900 dark:disabled:text-slate-600"
           value={author}
           onChange={e => setAuthor(e.target.value)}
-          disabled={isAutoDetected}
+          disabled={isAutoDetected || isViewReadOnly}
         >
           <option>Bahá’u’lláh</option>
           <option>The Báb</option>
@@ -306,14 +575,14 @@ export const QAManager = () => {
             type="button" 
             onClick={handleCancel} 
             className={`py-2 text-sm text-slate-600 hover:bg-slate-100 rounded border border-transparent hover:border-slate-300 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:border-slate-700 ${
-                isEditMode ? "px-3" : "flex-1"
+                (isEditMode && !isViewReadOnly) ? "px-3" : "flex-1"
             }`}
         >
             {deleteConfirmOpen ? 'Cancel' : (isEditMode ? 'Close' : 'Cancel')} 
         </button>
 
-        {/* B. Create / Update (Hidden if confirming delete) */}
-        {!deleteConfirmOpen && (
+        {/* B. Create / Update (Hidden if confirming delete or read-only) */}
+        {!deleteConfirmOpen && !isViewReadOnly && (
             <button 
                 onClick={handleSubmit}
                 disabled={!questionText || !answer || isSubmitting}

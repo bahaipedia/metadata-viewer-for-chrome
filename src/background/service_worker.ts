@@ -2,7 +2,7 @@ const API_BASE = "https://digitalbahairesources.org";
 const UNITS_ENDPOINT = "/api/units";
 
 // Helper to get headers easily
-const getHeaders = (token?: string) => {
+const getHeaders = (token?: string, showcaseMode?: boolean) => {
     const manifest = chrome.runtime.getManifest();
     const headers: any = {
         'Content-Type': 'application/json',
@@ -10,6 +10,9 @@ const getHeaders = (token?: string) => {
     };
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
+    }
+    if (showcaseMode) {
+        headers['X-View-Showcase'] = 'true';
     }
     return headers;
 };
@@ -200,14 +203,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // 3. PAGE DATA FETCH (Replicating useApi logic without Hooks)
 async function fetchPageData(sourceCode: string, sourcePageId: number) {
     try {
-        // 1. Get Token (Same as useApi)
-        const storage = await chrome.storage.local.get(['api_token']);
+        // 1. Get Token (Same as useApi; falls back to read-only sample mode when absent)
+        const storage = await chrome.storage.local.get(['api_token', 'showcase_mode']);
         const token = storage.api_token;
-        
-        if (!token) {
-            console.warn("[Background] No token found. Cannot fetch units.");
-            return { units: [] };
-        }
+        const showcaseMode = Boolean(storage.showcase_mode);
 
         // 2. Construct URL
         const url = new URL(`${API_BASE}${UNITS_ENDPOINT}`);
@@ -215,10 +214,18 @@ async function fetchPageData(sourceCode: string, sourcePageId: number) {
         url.searchParams.append('source_page_id', String(sourcePageId));
 
         // 3. Fetch (Same headers as useApi)
-        const response = await fetch(url.toString(), {
+        let response = await fetch(url.toString(), {
             method: 'GET',
-            headers: getHeaders(token) 
+            headers: getHeaders(token, showcaseMode) 
         });
+
+        if ((response.status === 401 || response.status === 403) && token) {
+            await chrome.storage.local.remove(['api_token', 'user_info']);
+            response = await fetch(url.toString(), {
+                method: 'GET',
+                headers: getHeaders(undefined, false)
+            });
+        }
 
         if (!response.ok) {
             console.error(`[Background] API Error ${response.status}: ${response.statusText}`);
@@ -240,20 +247,31 @@ async function fetchPageData(sourceCode: string, sourcePageId: number) {
 // Function to Fetch Multiple IDs at once
 async function fetchBatchData(sourceCode: string, pageIds: number[]) {
     try {
-        const storage = await chrome.storage.local.get(['api_token']);
+        const storage = await chrome.storage.local.get(['api_token', 'showcase_mode']);
         const token = storage.api_token;
-        
-        if (!token) return { units: [] };
+        const showcaseMode = Boolean(storage.showcase_mode);
 
         // We use POST because the list of IDs could be long
-        const response = await fetch(`${API_BASE}/api/units/batch`, {
+        let response = await fetch(`${API_BASE}/api/units/batch`, {
             method: 'POST',
-            headers: getHeaders(token),
+            headers: getHeaders(token, showcaseMode),
             body: JSON.stringify({
                 source_code: sourceCode,
                 source_page_ids: pageIds
             })
         });
+
+        if ((response.status === 401 || response.status === 403) && token) {
+            await chrome.storage.local.remove(['api_token', 'user_info']);
+            response = await fetch(`${API_BASE}/api/units/batch`, {
+                method: 'POST',
+                headers: getHeaders(undefined, false),
+                body: JSON.stringify({
+                    source_code: sourceCode,
+                    source_page_ids: pageIds
+                })
+            });
+        }
 
         if (!response.ok) {
             console.error(`[Background] Batch API Error ${response.status}`);
@@ -290,7 +308,13 @@ async function performHandshake(credentials?: {username: string, password: strin
         const data = await response.json();
         await chrome.storage.local.set({ 
             api_token: data.token,
-            user_info: { username: data.username, role: data.role }
+            showcase_mode: false,
+            user_info: {
+                uid: data.uid,
+                username: data.username,
+                role: data.role,
+                is_showcase_owner: Boolean(data.is_showcase_owner)
+            }
         });
 
         return { success: true, user: data.username };
@@ -303,9 +327,9 @@ async function performHandshake(credentials?: {username: string, password: strin
 // 5. HELPER: Send Realignments
 async function batchRealignUnits(updates: any[]) {
     try {
-        const storage = await chrome.storage.local.get(['api_token']);
+        const storage = await chrome.storage.local.get(['api_token', 'showcase_mode']);
         const token = storage.api_token;
-        if (!token) return;
+        if (!token || storage.showcase_mode) return;
 
         await fetch(`${API_BASE}/api/units/batch_realign`, {
             method: 'PATCH',

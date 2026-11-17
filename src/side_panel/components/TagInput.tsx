@@ -136,33 +136,40 @@ export const TagInput: React.FC<Props> = ({ tags, onChange, disabled }) => {
           <span key={tag.id} className="bg-blue-100 text-blue-700 text-xs font-medium px-2 py-1 rounded-md flex items-center shadow-sm dark:bg-blue-900/40 dark:text-blue-300">
             <UserIcon className="w-3 h-3 mr-1 opacity-50" />
             {tag.label}
-            <button 
-              type="button"
-              onClick={() => removeTag(idx)}
-              className="ml-2 hover:text-blue-900 dark:hover:text-blue-100"
-            >
-              <XMarkIcon className="w-3 h-3" />
-            </button>
+            {!disabled && (
+              <button 
+                type="button"
+                onClick={() => removeTag(idx)}
+                className="ml-2 hover:text-blue-900 dark:hover:text-blue-100"
+              >
+                <XMarkIcon className="w-3 h-3" />
+              </button>
+            )}
           </span>
         ))}
+        {disabled && tags.length === 0 && (
+          <span className="text-xs italic text-slate-400 dark:text-slate-500">No tags assigned</span>
+        )}
       </div>
 
-      <div className="relative">
-          {/* Input */}
-          <input
-            ref={inputRef} 
-            type="text"
-            className="w-full p-2 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all dark:bg-slate-950 dark:border-slate-700 dark:text-slate-200 dark:placeholder-slate-500"
-            placeholder={disabled ? "Locked" : "Type to search or create..."}
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={disabled}
-          />
+      {!disabled && (
+        <div className="relative">
+            {/* Input */}
+            <input
+              ref={inputRef} 
+              type="text"
+              className="w-full p-2 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all dark:bg-slate-950 dark:border-slate-700 dark:text-slate-200 dark:placeholder-slate-500"
+              placeholder={disabled ? "Locked" : "Type to search or create..."}
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={disabled}
+            />
 
-          {/* Render via Portal to Body */}
-          {!disabled && query && createPortal(dropdownContent, document.body)}
-      </div>
+            {/* Render via Portal to Body */}
+            {!disabled && query && createPortal(dropdownContent, document.body)}
+        </div>
+      )}
     </div>
   );
 };

@@ -33,6 +33,7 @@ interface Props {
     onEditTag: (tag: DefinedTag) => void;
     onUnitClick: (unit: LogicalUnit, fromTree?: boolean) => void;
     onCreateTag: (label: string) => void;
+    readOnly?: boolean;
 }
 
 // [CHANGED] Refined Double Folder Icon
@@ -48,7 +49,7 @@ const DoubleFolderIcon = ({ className = "w-4 h-4" }: { className?: string }) => 
 export const TaxonomyExplorer: React.FC<Props> = ({ 
     filter, viewMode, revealUnitId, refreshKey, 
     onTagSelect, isSelectionMode, isEditMode, onTreeChange, 
-    onEditTag, onUnitClick, onCreateTag
+    onEditTag, onUnitClick, onCreateTag, readOnly = false
 }) => {
   const { get } = useApi();
   const [tree, setTree] = useState<TreeNode[]>([]);
@@ -237,7 +238,7 @@ export const TaxonomyExplorer: React.FC<Props> = ({
                 1. Logic: Hide if filter is empty OR if an exact match exists 
                 2. Style: Unified look, removed huge padding 
             */}
-            {filter.trim().length > 0 && !hasExactMatch && (
+            {!readOnly && filter.trim().length > 0 && !hasExactMatch && (
                 <button 
                     onClick={() => onCreateTag(filter)}
                     className="w-full flex items-center gap-2 px-2 py-1.5 mt-1 ml-3 rounded-md text-sm transition-all text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 dark:hover:text-blue-400 group"
@@ -250,8 +251,13 @@ export const TaxonomyExplorer: React.FC<Props> = ({
             )}
 
             {displayTree.length === 0 && filter.trim().length === 0 && (
-                <div className="p-8 text-center text-slate-400 text-xs italic">
-                    No tags found.
+                <div className="p-8 text-center text-slate-400 text-xs space-y-2">
+                    <p className="italic">No tags yet.</p>
+                    {!readOnly && (
+                        <p className="text-[11px] not-italic leading-relaxed">
+                            Type a topic name above to create a folder, or highlight text on Bahai.works or Bahai.org/library to tag passages.
+                        </p>
+                    )}
                 </div>
             )}
         </div>
@@ -307,6 +313,10 @@ const TaxonomyNode = ({
         id: node.id,
         disabled: !isEditMode
     });
+
+    useEffect(() => {
+        setUnits([]);
+    }, [refreshKey]);
 
     useEffect(() => {
         if (isExpanded && units.length === 0 && !isEditMode) {

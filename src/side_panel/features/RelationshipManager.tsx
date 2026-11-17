@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { QuestionMarkCircleIcon, ArrowsRightLeftIcon, LinkIcon, ArrowsUpDownIcon } from '@heroicons/react/24/outline';
+import React, { useState, useEffect, useMemo } from 'react';
+import { QuestionMarkCircleIcon, ArrowsRightLeftIcon, LinkIcon, ArrowsUpDownIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/solid';
 import { useSelection } from '@/side_panel/context/SelectionContext';
+import { useAuth } from '@/side_panel/context/AuthContext';
+import { PinnedPageSection, DirectoryFolder } from '@/side_panel/components/StackedDirectory';
 import { useApi } from '@/hooks/useApi';
 import { StagedItem } from '@/utils/types';
 
@@ -15,6 +18,7 @@ const AUTHOR_OPTIONS = [
 
 export const RelationshipManager = () => {
   const { currentSelection, selectedUnit, clearSelection, refreshTrigger } = useSelection();
+  const { isReadOnly, workspaceKey } = useAuth();
   const { post, get, del } = useApi();
   const [subject, setSubject] = useState<StagedItem | null>(null);
   const [object, setObject] = useState<StagedItem | null>(null);
@@ -24,6 +28,12 @@ export const RelationshipManager = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [relationships, setRelationships] = useState<any[]>([]);
+  const [allRelationships, setAllRelationships] = useState<any[]>([]);
+  const [loadingAll, setLoadingAll] = useState(true);
+  const [filterText, setFilterText] = useState('');
+  const [directoryOpen, setDirectoryOpen] = useState(true);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [listRefreshKey, setListRefreshKey] = useState(0);
   const [currentPageId, setCurrentPageId] = useState<number>(0);
 
   useEffect(() => {
@@ -42,9 +52,20 @@ export const RelationshipManager = () => {
         
         const pageSourceCode = res?.source_code || res?.units?.[0]?.source_code;
         const pageSourcePageId = res?.source_page_id || res?.units?.[0]?.source_page_id;
+        const pageUnitIds = Array.isArray(res?.units)
+          ? res.units.map((u: any) => u.id).filter(Boolean).join(',')
+          : '';
 
-        if (pageSourceCode && pageSourcePageId) {
-            const rels = await get(`/api/relationships?source_code=${pageSourceCode}&source_page_id=${pageSourcePageId}`);
+        if ((pageSourceCode && pageSourcePageId) || pageUnitIds) {
+            const params = new URLSearchParams();
+            if (pageSourceCode && pageSourcePageId) {
+              params.set('source_code', String(pageSourceCode));
+              params.set('source_page_id', String(pageSourcePageId));
+            }
+            if (pageUnitIds) {
+              params.set('unit_ids', pageUnitIds);
+            }
+            const rels = await get(`/api/relationships?${params.toString()}`);
             if (isMounted) setRelationships(rels || []);
             return; 
         }
@@ -65,7 +86,31 @@ export const RelationshipManager = () => {
     fetchStats();
 
     return () => { isMounted = false; };
-  }, [refreshTrigger]);
+  }, [refreshTrigger, workspaceKey]);
+
+  useEffect(() => {
+    let isMounted = true;
+    setLoadingAll(true);
+    get('/api/relationships?scope=all')
+      .then((rows) => {
+        if (isMounted) setAllRelationships(Array.isArray(rows) ? rows : []);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch all relationships", err);
+        if (isMounted) setAllRelationships([]);
+      })
+      .finally(() => {
+        if (isMounted) setLoadingAll(false);
+      });
+    return () => { isMounted = false; };
+  }, [workspaceKey, listRefreshKey]);
+
+  useEffect(() => {
+    if (isReadOnly && (subject || object)) {
+      setSubject(null);
+      setObject(null);
+    }
+  }, [isReadOnly]);
 
   // --- STANDARD HELPERS (State Persistence, etc.) ---
   useEffect(() => {
@@ -148,6 +193,7 @@ export const RelationshipManager = () => {
       await del(`/api/contribute/unit/${selectedUnit.id}`);
       alert("Link deleted.");
       clearSelection();
+      setListRefreshKey(prev => prev + 1);
       chrome.tabs.reload();
     } catch (e: any) {
       alert("Error deleting: " + e.message);
@@ -203,6 +249,7 @@ export const RelationshipManager = () => {
 
       alert("Relationship Linked!");
       updateState('clear', null);
+      setListRefreshKey(prev => prev + 1);
       chrome.tabs.reload();
 
     } catch (e: any) {
@@ -249,11 +296,48 @@ export const RelationshipManager = () => {
   const isSubjectAuto = !!(subject?.type === 'new' && subject.context?.author && subject.context.author !== 'Undefined');
   const isObjectAuto = !!(object?.type === 'new' && object.context?.author && object.context.author !== 'Undefined');
 
+  const REL_LABELS: Record<string, string> = {
+    commentary: 'Commentary on',
+    translation: 'Translation of',
+    refutation: 'Refutation of',
+    allusion: 'Allusion to'
+  };
+
+  const groupedRelationships = useMemo(() => {
+    const q = filterText.trim().toLowerCase();
+    const groups = new Map<string, any[]>();
+
+    for (const r of allRelationships) {
+      if (q) {
+        const hay = `${r.relationship_type || ''} ${r.subject_page_title || ''} ${r.object_page_title || ''} ${r.subject_text || ''} ${r.object_text || ''}`.toLowerCase();
+        if (!hay.includes(q)) continue;
+      }
+      const key = REL_LABELS[r.relationship_type] || (r.relationship_type ? r.relationship_type.charAt(0).toUpperCase() + r.relationship_type.slice(1) : 'Linked Passages');
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(r);
+    }
+
+    return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [allRelationships, filterText]);
+
+  const toggleGroup = (name: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
   // --- VIEW MODE ---
-  if (selectedUnit && (selectedUnit.unit_type === 'link_subject' || selectedUnit.unit_type === 'link_object')) {
+  if (selectedUnit && (selectedUnit.unit_type === 'link_subject' || selectedUnit.unit_type === 'link_object' || Boolean((selectedUnit as any).has_relationship))) {
+    const isDedicatedLinkNode = selectedUnit.unit_type === 'link_subject' || selectedUnit.unit_type === 'link_object';
+    const canDeleteLink = !isReadOnly && isDedicatedLinkNode && Boolean((selectedUnit as any).can_delete);
     return (
       <div className="p-4 space-y-4">
-         <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Manage Link</h2>
+         <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
+           {canDeleteLink ? 'Manage Link' : 'Link Details'}
+         </h2>
          <div className="p-4 bg-slate-100 rounded border border-slate-300 dark:bg-slate-900 dark:border-slate-700">
             <span className="text-xs font-bold text-slate-500 uppercase block mb-2 dark:text-slate-400">
               Selected {selectedUnit.unit_type === 'link_subject' ? 'Subject' : 'Object'}
@@ -265,15 +349,17 @@ export const RelationshipManager = () => {
                 onClick={clearSelection}
                 className="flex-1 py-2 bg-white border border-slate-300 rounded text-slate-600 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700"
               >
-                Back
+                {canDeleteLink ? 'Back' : 'Close'}
               </button>
-              <button 
-                onClick={handleDelete}
-                disabled={isSubmitting}
-                className="flex-1 py-2 bg-red-600 text-white font-bold rounded hover:bg-red-700 disabled:opacity-50"
-              >
-                {isSubmitting ? "Deleting..." : "Delete Link"}
-              </button>
+              {canDeleteLink && (
+                <button 
+                  onClick={handleDelete}
+                  disabled={isSubmitting}
+                  className="flex-1 py-2 bg-red-600 text-white font-bold rounded hover:bg-red-700 disabled:opacity-50"
+                >
+                  {isSubmitting ? "Deleting..." : "Delete Link"}
+                </button>
+              )}
             </div>
          </div>
       </div>
@@ -281,7 +367,7 @@ export const RelationshipManager = () => {
   }
 
   // --- CREATE MODE ---
-  if (subject || object || currentSelection) {
+  if (!isReadOnly && (subject || object || currentSelection)) {
     return (
         <div className="p-4 space-y-6">
         <div className="flex items-center gap-2 group relative">
@@ -403,11 +489,65 @@ export const RelationshipManager = () => {
     );
   }
 
+  const renderRelCard = (rel: any, idx: number, showTitles = false) => (
+    <div key={`${rel.subject_unit_id}-${rel.object_unit_id}-${idx}`} className="flex flex-col rounded border shadow-sm bg-white overflow-hidden dark:bg-slate-950 dark:border-slate-700">
+      {/* SUBJECT (Top) */}
+      <button 
+        onClick={() => handleJumpToUnit({
+          id: rel.subject_unit_id,
+          source_code: rel.subject_source_code,
+          source_page_id: rel.subject_page_id,
+          title: rel.subject_page_title,
+          text_content: rel.subject_text,
+          connected_anchors: rel.subject_anchors
+        })}
+        className="w-full text-left p-2 bg-blue-50 hover:bg-blue-100 transition-colors border-b border-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 dark:border-blue-900/40"
+      >
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <span className="text-[10px] font-bold text-blue-600 bg-blue-100 px-1.5 rounded uppercase inline-block dark:text-blue-300 dark:bg-blue-900/60">Subject</span>
+          {showTitles && rel.subject_page_title && (
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{rel.subject_page_title}</span>
+          )}
+        </div>
+        <p className="text-xs text-slate-700 font-serif italic line-clamp-2 dark:text-slate-300">"{rel.subject_text}"</p>
+      </button>
+
+      {/* CONNECTOR (Middle) */}
+      <div className="flex justify-center items-center py-1 bg-slate-50 border-b border-slate-100 dark:bg-slate-900 dark:border-slate-800">
+        <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase dark:text-slate-500">
+          <ArrowsUpDownIcon className="w-3 h-3" />
+          <span>{rel.relationship_type}</span>
+        </div>
+      </div>
+
+      {/* OBJECT (Bottom) */}
+      <button 
+        onClick={() => handleJumpToUnit({
+          id: rel.object_unit_id,
+          source_code: rel.object_source_code,
+          source_page_id: rel.object_page_id,
+          title: rel.object_page_title,
+          text_content: rel.object_text,
+          connected_anchors: rel.object_anchors
+        })}
+        className="w-full text-left p-2 bg-green-50 hover:bg-green-100 transition-colors dark:bg-green-900/20 dark:hover:bg-green-900/40"
+      >
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <span className="text-[10px] font-bold text-green-700 bg-green-100 px-1.5 rounded uppercase inline-block dark:text-green-300 dark:bg-green-900/60">Object</span>
+          {showTitles && rel.object_page_title && (
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{rel.object_page_title}</span>
+          )}
+        </div>
+        <p className="text-xs text-slate-700 font-serif italic line-clamp-2 dark:text-slate-300">"{rel.object_text}"</p>
+      </button>
+    </div>
+  );
+
   // --- LIST MODE ---
   return (
-    <div className="p-4 space-y-6 h-full flex flex-col">
+    <div className="p-4 space-y-3 h-full flex flex-col overflow-hidden">
         {/* Header (Unchanged) */}
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center pr-10 flex-shrink-0">
             <div className="flex items-center gap-2 group relative">
                 <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
                     Relationship Manager
@@ -421,65 +561,76 @@ export const RelationshipManager = () => {
             </div>
         </div>
 
-        {relationships.length > 0 ? (
-            <div className="bg-slate-50 rounded border border-slate-200 p-3 flex flex-col h-full overflow-hidden dark:bg-slate-900 dark:border-slate-700">
-                <p className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide border-b border-slate-200 pb-1 flex-shrink-0 dark:text-slate-400 dark:border-slate-700">
-                    This page contains: {relationships.length} link{relationships.length !== 1 ? 's' : ''}
-                </p>
-                
-                <div className="space-y-3 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-300 flex-1 min-h-0">
-                    {relationships.map((rel, idx) => (
-                        <div key={`${rel.subject_unit_id}-${rel.object_unit_id}-${idx}`} className="flex flex-col rounded border shadow-sm bg-white overflow-hidden dark:bg-slate-950 dark:border-slate-700">
-
-                            {/* SUBJECT (Top) */}
-                            <button 
-                                onClick={() => handleJumpToUnit({
-                                    id: rel.subject_unit_id,
-                                    source_code: rel.subject_source_code,
-                                    source_page_id: rel.subject_page_id,
-                                    title: rel.subject_page_title,
-                                    text_content: rel.subject_text
-                                })}
-                                className="w-full text-left p-2 bg-blue-50 hover:bg-blue-100 transition-colors border-b border-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 dark:border-blue-900/40"
-                            >
-                                <span className="text-[10px] font-bold text-blue-600 bg-blue-100 px-1.5 rounded uppercase mb-1 inline-block dark:text-blue-300 dark:bg-blue-900/60">Subject</span>
-                                <p className="text-xs text-slate-700 font-serif italic line-clamp-2 dark:text-slate-300">"{rel.subject_text}"</p>
-                            </button>
-
-                            {/* CONNECTOR (Middle) */}
-                            <div className="flex justify-center items-center py-1 bg-slate-50 border-b border-slate-100 dark:bg-slate-900 dark:border-slate-800">
-                                <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase dark:text-slate-500">
-                                    <ArrowsUpDownIcon className="w-3 h-3" />
-                                    <span>{rel.relationship_type}</span>
-                                </div>
-                            </div>
-
-                            {/* OBJECT (Bottom) */}
-                            <button 
-                                onClick={() => handleJumpToUnit({
-                                    id: rel.object_unit_id,
-                                    source_code: rel.object_source_code,
-                                    source_page_id: rel.object_page_id,
-                                    title: rel.object_page_title,
-                                    text_content: rel.object_text
-                                })}
-                                className="w-full text-left p-2 bg-green-50 hover:bg-green-100 transition-colors dark:bg-green-900/20 dark:hover:bg-green-900/40"
-                            >
-                                <span className="text-[10px] font-bold text-green-700 bg-green-100 px-1.5 rounded uppercase mb-1 inline-block dark:text-green-300 dark:bg-green-900/60">Object</span>
-                                <p className="text-xs text-slate-700 font-serif italic line-clamp-2 dark:text-slate-300">"{rel.object_text}"</p>
-                            </button>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        ) : (
-            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-400 dark:text-slate-500">
-                <LinkIcon className="h-12 w-12 mb-2 opacity-20" /> 
-                <p className="text-sm max-w-xs">
-                    Select text on the page to begin linking it to another concept or explanation.
-                </p>
-            </div>
+        {relationships.length > 0 && (
+            <PinnedPageSection
+                label={`This page contains: ${relationships.length} link${relationships.length !== 1 ? 's' : ''}`}
+                accent="slate"
+            >
+                {relationships.map((rel, idx) => renderRelCard(rel, idx, false))}
+            </PinnedPageSection>
         )}
+
+        <div className="flex-1 min-h-0 flex flex-col bg-white rounded border border-slate-200 overflow-hidden dark:bg-slate-900 dark:border-slate-800">
+            <button
+                type="button"
+                onClick={() => setDirectoryOpen(prev => !prev)}
+                className="w-full flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs font-bold uppercase tracking-wide text-slate-600 dark:bg-slate-800/70 dark:border-slate-800 dark:text-slate-300 flex-shrink-0"
+            >
+                <span>All Linked Passages ({allRelationships.length})</span>
+                {directoryOpen ? <ChevronDownIcon className="w-3.5 h-3.5" /> : <ChevronRightIcon className="w-3.5 h-3.5" />}
+            </button>
+
+            {directoryOpen && (
+                <>
+                    <div className="p-2 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
+                        <div className="relative">
+                            <MagnifyingGlassIcon className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder="Filter linked texts, titles, or types..."
+                                value={filterText}
+                                onChange={(e) => setFilterText(e.target.value)}
+                                className="w-full pl-8 pr-2 py-1.5 text-xs border border-slate-200 rounded bg-slate-50 focus:bg-white focus:ring-1 focus:ring-blue-500 outline-none dark:bg-slate-950 dark:border-slate-700 dark:text-slate-200"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+                        {loadingAll ? (
+                            <div className="p-4 text-center text-xs text-slate-400">Loading links...</div>
+                        ) : groupedRelationships.length > 0 ? (
+                            groupedRelationships.map(([groupName, items]) => {
+                                const isOpen = Boolean(filterText.trim()) || expandedGroups.has(groupName);
+                                return (
+                                    <DirectoryFolder
+                                        key={groupName}
+                                        label={groupName}
+                                        count={items.length}
+                                        isOpen={isOpen}
+                                        onToggle={() => toggleGroup(groupName)}
+                                    >
+                                        <div className="space-y-2">
+                                            {items.map((rel: any, idx: number) => renderRelCard(rel, idx, true))}
+                                        </div>
+                                    </DirectoryFolder>
+                                );
+                            })
+                        ) : allRelationships.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center p-6 text-center text-slate-400 dark:text-slate-500">
+                                <LinkIcon className="h-10 w-10 mb-2 opacity-20" />
+                                <p className="text-xs max-w-xs leading-relaxed">
+                                    Select text on the page to begin linking it to another concept or explanation.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="p-4 text-center text-xs italic text-slate-400">
+                                No matching links found.
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
+        </div>
     </div>
   );
 };

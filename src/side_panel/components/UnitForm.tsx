@@ -20,6 +20,7 @@ interface Props {
   // Repair Logic
   isRepairing?: boolean;
   onEnterRepair?: () => void;
+  readOnly?: boolean;
 }
 
 export const UnitForm: React.FC<Props> = ({ 
@@ -31,7 +32,8 @@ export const UnitForm: React.FC<Props> = ({
   existingUnit,
   onSuccess,
   isRepairing,
-  onEnterRepair
+  onEnterRepair,
+  readOnly = false
 }) => {
   const { post, put, del } = useApi();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,7 +41,7 @@ export const UnitForm: React.FC<Props> = ({
 
   // Mode Detection
   const isViewMode = !!existingUnit;
-  const canEdit = existingUnit?.can_delete ?? true; 
+  const canEdit = !readOnly && (existingUnit?.can_delete ?? true); 
 
   // Detect Author from Context
   const detectedAuthor = !isViewMode && context?.author && context.author !== 'Undefined' ? context.author : null;

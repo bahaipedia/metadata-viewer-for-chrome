@@ -35,6 +35,7 @@ export const initHighlighter = async () => {
         }
         // Return stats from the already loaded cache
         if (request.type === 'GET_CACHED_STATS') {
+            const meta = getPageMetadata();
             const units = cachedUnits.map(u => ({
                 id: u.id,
                 text_content: u.text_content.replace(/\s+/g, ' ').substring(0, 80) + "...",
@@ -46,7 +47,12 @@ export const initHighlighter = async () => {
                 connected_anchors: u.connected_anchors || []
             }));
             
-            sendResponse({ units });
+            sendResponse({
+                source_code: meta.source_code,
+                source_page_id: meta.source_page_id,
+                title: meta.title,
+                units
+            });
             return true;
         }
         if (request.type === 'UPDATE_HIGHLIGHTS' && Array.isArray(request.units)) {
@@ -84,6 +90,17 @@ export const initHighlighter = async () => {
                 document.documentElement.classList.toggle('rag-dark', isDarkTheme);
                 if (currentBrokenUnits.length > 0) {
                     renderBrokenLinksFooter(currentBrokenUnits);
+                }
+            }
+            if (changes.api_token || changes.showcase_mode) {
+                cachedUnits = [];
+                fetchedIds.clear();
+                renderBrokenLinksFooter([]);
+                renderHighlights();
+                if (CURRENT_SITE.code === 'lib') {
+                    scanAndFetchLibIds(true);
+                } else {
+                    fetchAndRenderPage();
                 }
             }
         }
@@ -309,10 +326,15 @@ const verifyAndHealUnits = async () => {
         }
     });
 
-    renderBrokenLinksFooter(brokenUnits);
+    const storage = await chrome.storage.local.get(['api_token', 'showcase_mode', 'user_info']);
+    const authed = Boolean(storage.api_token);
+    const isOwner = Boolean(authed && (storage.user_info?.is_showcase_owner || storage.user_info?.role === 'admin'));
+    const isReadOnly = !authed || (Boolean(storage.showcase_mode) && !isOwner);
+
+    renderBrokenLinksFooter(isReadOnly ? [] : brokenUnits);
     renderHighlights();
 
-    if (updatesToSync.length > 0) {
+    if (!isReadOnly && updatesToSync.length > 0) {
         chrome.runtime.sendMessage({
             type: 'BATCH_REALIGN_UNITS',
             updates: updatesToSync
@@ -547,7 +569,7 @@ const renderHighlights = () => {
         let shouldRender = false;
         if (currentMode === 'TAXONOMY_MODE') shouldRender = (unit.unit_type === 'user_highlight');
         else if (currentMode === 'QA_MODE') shouldRender = (unit.unit_type === 'canonical_answer');
-        else if (currentMode === 'RELATIONS_MODE') shouldRender = (unit.unit_type === 'link_subject' || unit.unit_type === 'link_object');
+        else if (currentMode === 'RELATIONS_MODE') shouldRender = (unit.unit_type === 'link_subject' || unit.unit_type === 'link_object' || Boolean((unit as any).has_relationship));
         else if (currentMode === 'CREATE_MODE') shouldRender = !['canonical_answer', 'link_subject', 'link_object', 'user_highlight'].includes(unit.unit_type);
 
         if (!shouldRender) {

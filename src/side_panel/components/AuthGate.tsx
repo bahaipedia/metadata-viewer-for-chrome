@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 
 interface Props {
   onLogin: () => void;
+  onCancel?: () => void;
 }
 
-export const AuthGate: React.FC<Props> = ({ onLogin }) => {
+export const AuthGate: React.FC<Props> = ({ onLogin, onCancel }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -61,7 +62,16 @@ export const AuthGate: React.FC<Props> = ({ onLogin }) => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen p-6 bg-slate-50 text-center dark:bg-slate-950">
+    <div className="relative flex flex-col items-center justify-center h-screen p-6 bg-slate-50 text-center dark:bg-slate-950">
+      {onCancel && (
+        <button
+          type="button"
+          onClick={onCancel}
+          className="absolute top-4 left-4 text-xs font-medium text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400"
+        >
+          &larr; Back to Sample Data
+        </button>
+      )}
       <div className="mb-6">
         <div className="w-16 h-16 bg-blue-600 rounded-full mx-auto flex items-center justify-center text-white text-2xl font-bold">
           B
@@ -117,7 +127,18 @@ export const AuthGate: React.FC<Props> = ({ onLogin }) => {
       <div className="mt-6 text-xs text-slate-400 text-left dark:text-slate-500">
         <p className="mb-1 font-semibold">How to get a Bot Password:</p>
         <ol className="list-decimal pl-4 space-y-1">
-          <li>Go to <b>Special:BotPasswords</b> on Bahai.works</li>
+          <li>
+            Go to{' '}
+            <a
+              href="https://bahai.works/Special:BotPasswords"
+              target="_blank"
+              rel="noreferrer"
+              className="font-bold text-blue-500 hover:underline"
+            >
+              Special:BotPasswords
+            </a>{' '}
+            on Bahai.works
+          </li>
           <li>Create a new bot (e.g. named "AnnotationTool")</li>
           <li>Grant it <b>High-volume editing</b></li>
           <li>Copy the password generated there.</li>

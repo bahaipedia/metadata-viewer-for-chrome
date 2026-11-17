@@ -24,6 +24,32 @@ export const SelectionProvider = ({ children }: { children: ReactNode }) => {
   const [selectedUnit, setSelectedUnit] = useState<(LogicalUnit & { can_delete?: boolean }) | null>(null);
   const [viewMode, setViewModeState] = useState<'mine' | 'all'>('mine');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const isReadOnlyRef = React.useRef(true);
+
+  useEffect(() => {
+    const syncReadOnly = () => {
+      chrome.storage.local.get(['api_token', 'showcase_mode', 'user_info'], (res) => {
+        const authed = Boolean(res.api_token);
+        const isOwner = Boolean(authed && (res.user_info?.is_showcase_owner || res.user_info?.role === 'admin'));
+        isReadOnlyRef.current = !authed || (Boolean(res.showcase_mode) && !isOwner);
+      });
+    };
+    syncReadOnly();
+
+    const handleStorage = (changes: { [key: string]: chrome.storage.StorageChange }, area: string) => {
+      if (area === 'local' && (changes.api_token || changes.showcase_mode || changes.user_info)) {
+        syncReadOnly();
+        if (changes.api_token || changes.showcase_mode) {
+          setCurrentSelection(null);
+          setSelectedUnit(null);
+          setRefreshTrigger(prev => prev + 1);
+        }
+      }
+    };
+
+    chrome.storage.onChanged.addListener(handleStorage);
+    return () => chrome.storage.onChanged.removeListener(handleStorage);
+  }, []);
 
   // Navigation Listener
   useEffect(() => {
@@ -60,6 +86,7 @@ export const SelectionProvider = ({ children }: { children: ReactNode }) => {
 
       // CASE 1: New Text Selected
       if (request.type === 'TEXT_SELECTED') {
+        if (isReadOnlyRef.current) return;
         setSelectedUnit(null); 
         setCurrentSelection({
           text: request.text,

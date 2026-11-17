@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useSelection } from '@/side_panel/context/SelectionContext';
+import { useAuth } from '@/side_panel/context/AuthContext';
 import { TaxonomyExplorer } from './TaxonomyExplorer';
 import { TagInput, Tag } from '../components/TagInput';
 import { useApi } from '@/hooks/useApi';
@@ -23,6 +24,7 @@ const CANONICAL_AUTHORS = [
 
 export const Tags = () => {
   const { currentSelection, clearSelection } = useSelection();
+  const { isReadOnly, workspaceKey } = useAuth();
   const { post, put, del, get } = useApi();
   
   const [viewMode, setViewMode] = useState<'tree' | 'flat'>('tree');
@@ -83,6 +85,7 @@ export const Tags = () => {
   // Refs to keep the listener stable
   const editingUnitRef = useRef(editingUnit);
   const forceRepairModeRef = useRef(forceRepairMode);
+  const isReadOnlyRef = useRef(isReadOnly);
   
   // Ref handler
   const handleUnitClickRef = useRef<(unit: LogicalUnit, fromTree?: boolean) => void>(() => {});
@@ -93,7 +96,15 @@ export const Tags = () => {
       forceRepairModeRef.current = forceRepairMode;
       isEditModeRef.current = isEditMode;
       handleSaveTreeRef.current = handleSaveTree;
+      isReadOnlyRef.current = isReadOnly;
   });
+
+  useEffect(() => {
+      closeBottomPane();
+      setIsEditMode(false);
+      setTreeChanges([]);
+      setRefreshKey(prev => prev + 1);
+  }, [workspaceKey]);
 
   // 1. Listen for clicks/selection
   useEffect(() => {
@@ -106,6 +117,7 @@ export const Tags = () => {
 
       // CASE B: Text Selected
       if (msg.type === 'TEXT_SELECTED') {
+          if (isReadOnlyRef.current) return;
           // Check Refs instead of state variables
           const isRepairing = editingUnitRef.current?.broken_index || forceRepairModeRef.current;
 
@@ -175,7 +187,7 @@ export const Tags = () => {
         setEditingTag(null);
         
         // CASE 1: Broken Unit -> Repair
-        if (unit.broken_index) {
+        if (unit.broken_index && !isReadOnly) {
              setEditingUnit(unit);
              setRepairSelection(null);
              setRevealUnitId(unit.id || null);
@@ -513,8 +525,9 @@ export const Tags = () => {
     setIsDeleteMode(false);
   };
 
-  const isEditorVisible = !!currentSelection || !!editingUnit || !!editingTag;
-  const isRepairView = !!editingUnit?.broken_index || forceRepairMode;
+  const isUnitReadOnly = isReadOnly || Boolean(editingUnit && (editingUnit as any).can_delete === false);
+  const isEditorVisible = (!isReadOnly && !!currentSelection) || !!editingUnit || (!isReadOnly && !!editingTag);
+  const isRepairView = !isUnitReadOnly && (!!editingUnit?.broken_index || forceRepairMode);
 
   const handleCancelEditMode = () => {
       setIsEditMode(false);
@@ -584,7 +597,7 @@ export const Tags = () => {
       
       {/* Header */}
       <div className="p-3 bg-white border-b border-slate-200 shadow-sm z-10 space-y-3 dark:bg-slate-900 dark:border-slate-800">
-        <div className="flex bg-slate-100 p-1 rounded-lg dark:bg-slate-800">
+        <div className="flex bg-slate-100 p-1 rounded-lg mr-10 dark:bg-slate-800">
           {/* Button 1: Taxonomy Tree */}
           <button
             onClick={() => setViewMode('tree')}
@@ -617,7 +630,7 @@ export const Tags = () => {
                 <MagnifyingGlassIcon className="absolute left-2 top-2.5 h-4 w-4 text-slate-400 dark:text-slate-500" />
                 <input 
                     type="text" 
-                    placeholder={viewMode === 'tree' ? "Filter or create taxonomy..." : "Filter tags..."}
+                    placeholder={isReadOnly ? "Filter taxonomy..." : (viewMode === 'tree' ? "Filter or create taxonomy..." : "Filter tags...")}
                     className="w-full pl-8 pr-2 py-2 text-sm border rounded bg-slate-50 focus:bg-white focus:ring-1 focus:ring-blue-500 outline-none dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 dark:focus:bg-slate-950"
                     value={filterText}
                     onChange={(e) => setFilterText(e.target.value)}
@@ -625,7 +638,7 @@ export const Tags = () => {
             </div>
 
             {/* Only show Edit controls in Tree mode */}
-            {viewMode === 'tree' && (
+            {viewMode === 'tree' && !isReadOnly && (
                 !isEditMode ? (
                     <button 
                         onClick={() => setIsEditMode(true)} 
@@ -665,12 +678,13 @@ export const Tags = () => {
             revealUnitId={revealUnitId}
             refreshKey={refreshKey}
             onTagSelect={handleTagClickFromTree}
-            isSelectionMode={isEditorVisible && !editingTag}
-            isEditMode={isEditMode}
+            isSelectionMode={!isUnitReadOnly && isEditorVisible && !editingTag}
+            isEditMode={!isReadOnly && isEditMode}
             onTreeChange={handleTreeChange}
             onEditTag={setEditingTag}
             onUnitClick={handleUnitClick}
             onCreateTag={handleQuickCreate}
+            readOnly={isReadOnly}
         />
       </div>
 
@@ -679,17 +693,19 @@ export const Tags = () => {
         <div className="border-t-2 border-blue-500 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-20 flex flex-col max-h-[60%] dark:bg-slate-900 dark:border-blue-600">
             
            {/* Dynamic Header */}
-           <div className={`flex items-center justify-between px-4 py-2 border-b border-slate-200 dark:border-slate-700 ${editingUnit?.broken_index || isDeleteMode ? 'bg-red-50 dark:bg-red-900/20' : 'bg-slate-50 dark:bg-slate-800'}`}>
-              <span className={`text-xs font-bold uppercase ${editingUnit?.broken_index || isDeleteMode ? 'text-red-600 dark:text-red-400 flex items-center gap-1' : 'text-slate-500 dark:text-slate-400'}`}>
-                {(editingUnit?.broken_index || isDeleteMode) && <ExclamationTriangleIcon className="w-4 h-4" />}
+           <div className={`flex items-center justify-between px-4 py-2 border-b border-slate-200 dark:border-slate-700 ${(!isUnitReadOnly && editingUnit?.broken_index) || isDeleteMode ? 'bg-red-50 dark:bg-red-900/20' : 'bg-slate-50 dark:bg-slate-800'}`}>
+              <span className={`text-xs font-bold uppercase ${(!isUnitReadOnly && editingUnit?.broken_index) || isDeleteMode ? 'text-red-600 dark:text-red-400 flex items-center gap-1' : 'text-slate-500 dark:text-slate-400'}`}>
+                {((!isUnitReadOnly && editingUnit?.broken_index) || isDeleteMode) && <ExclamationTriangleIcon className="w-4 h-4" />}
                 {isDeleteMode ? "Delete Category" : (
-                    editingUnit?.broken_index ? "Repair Broken Highlight" : (editingTag ? "Modify Tag" : (editingUnit ? "Edit Highlight" : "New Highlight"))
+                    isUnitReadOnly ? "Highlight Details" : (
+                        editingUnit?.broken_index ? "Repair Broken Highlight" : (editingTag ? "Modify Tag" : (editingUnit ? "Edit Highlight" : "New Highlight"))
+                    )
                 )}
               </span>
               
               <div className="flex items-center gap-1">
                 {/* Save Button (Hide in Delete Mode) */}
-                {!isDeleteMode && (
+                {!isDeleteMode && !isUnitReadOnly && (
                     <button 
                         onClick={
                             isRepairView ? handleRepair : 
@@ -704,7 +720,7 @@ export const Tags = () => {
                 )}
 
                 {/* Delete Trigger Button */}
-                {editingTag && !isDeleteMode && (
+                {editingTag && !isDeleteMode && !isReadOnly && (
                     <button 
                         onClick={() => setIsDeleteMode(true)}
                         className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
@@ -715,7 +731,7 @@ export const Tags = () => {
                 )}
 
                 {/* Manual Edit / Re-Align Button */}
-                {editingUnit && !editingUnit.broken_index && !isRepairView && (
+                {editingUnit && !isUnitReadOnly && !editingUnit.broken_index && !isRepairView && (
                     <button 
                         onClick={() => { setForceRepairMode(true); setRepairSelection(null); }}
                         className="text-blue-500 hover:text-blue-700 p-1 rounded hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
@@ -726,13 +742,13 @@ export const Tags = () => {
                 )}
 
                 {/* Delete Highlight Button */}
-                {editingUnit && (
+                {editingUnit && !isUnitReadOnly && (
                     <button onClick={handleDelete} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20" title="Delete">
                         <TrashIcon className="w-5 h-5" />
                     </button>
                 )}
                 
-                <div className="h-4 w-px bg-slate-300 mx-1"></div>
+                {!isUnitReadOnly && <div className="h-4 w-px bg-slate-300 mx-1"></div>}
 
                 <button onClick={closeBottomPane} className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 font-bold text-lg leading-none px-1">
                     &times;
@@ -992,7 +1008,19 @@ export const Tags = () => {
                      )}
                    </div>
                  )}
-                 <TagInput tags={selectedTags} onChange={setSelectedTags} />
+                 {editingUnit && isUnitReadOnly && (
+                   <div className="mb-3 space-y-2">
+                     <p className="text-xs italic font-serif text-slate-600 dark:text-slate-300 line-clamp-4 bg-slate-50 dark:bg-slate-950 p-2 rounded border border-slate-200 dark:border-slate-800">
+                       "{editingUnit.text_content}"
+                     </p>
+                     {editingUnit.author && editingUnit.author !== 'Undefined' && (
+                       <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                         Author: {editingUnit.author}
+                       </div>
+                     )}
+                   </div>
+                 )}
+                 <TagInput tags={selectedTags} onChange={setSelectedTags} disabled={isUnitReadOnly} />
                   </>
                 )
               )}
